@@ -1,0 +1,23 @@
+{
+  "name": "cloud-job-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud-ready job tracker and resume tailor for SWE/cloud internships with Apify ingestion.",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/api",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:worker": "npm run worker --workspace apps/api",
+    "build": "npm run build --workspace apps/web",
+    "test": "npm run test --workspace apps/api",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

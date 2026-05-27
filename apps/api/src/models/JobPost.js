@@ -1,0 +1,34 @@
+import mongoose from "mongoose";
+
+const jobPostSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    source: { type: String, required: true },
+    sourceUrl: { type: String, required: true },
+    externalId: String,
+    title: { type: String, required: true },
+    company: { type: String, required: true },
+    location: String,
+    description: String,
+    employmentType: String,
+    remoteType: String,
+    deadline: Date,
+    keywords: [String],
+    match: {
+      score: { type: Number, default: 0 },
+      strongMatches: [String],
+      missingKeywords: [String],
+      summary: String
+    },
+    status: {
+      type: String,
+      enum: ["saved", "tailoring", "applied", "interview", "rejected", "offer"],
+      default: "saved"
+    }
+  },
+  { timestamps: true }
+);
+
+jobPostSchema.index({ userId: 1, sourceUrl: 1 }, { unique: true });
+
+export const JobPost = mongoose.model("JobPost", jobPostSchema);
