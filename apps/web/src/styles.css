@@ -251,6 +251,12 @@ h1 {
   gap: 10px;
 }
 
+.field-hint {
+  color: #617066;
+  font-size: 0.88rem;
+  margin: -2px 0 2px;
+}
+
 .notice {
   background: #e9f7ef;
   border: 1px solid #bae5ca;

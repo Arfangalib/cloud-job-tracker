@@ -13,6 +13,7 @@ function App() {
   const [resumes, setResumes] = useState([]);
   const [draft, setDraft] = useState(null);
   const [message, setMessage] = useState("");
+  const [authMode, setAuthMode] = useState("register");
 
   const api = useMemo(() => makeApi(accessToken, setAccessToken), [accessToken]);
 
@@ -34,16 +35,35 @@ function App() {
 
   async function handleAuth(event) {
     event.preventDefault();
+    setMessage("");
     const data = Object.fromEntries(new FormData(event.currentTarget));
     const endpoint = data.mode === "register" ? "/auth/register" : "/auth/login";
     const body =
       data.mode === "register"
         ? { name: data.name, email: data.email, password: data.password }
         : { email: data.email, password: data.password };
-    const result = await api.post(endpoint, body);
-    setAccessToken(result.accessToken);
-    setUser(result.user);
-    setMessage(`Welcome, ${result.user.name}`);
+
+    try {
+      const result = await api.post(endpoint, body);
+
+      if (data.mode === "register") {
+        event.currentTarget.reset();
+        setAuthMode("login");
+        setMessage("Account created. Please sign in.");
+        return;
+      }
+
+      setAccessToken(result.accessToken);
+      setUser(result.user);
+      setMessage(`Welcome, ${result.user.name}`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  function handleAuthModeChange(nextMode) {
+    setAuthMode(nextMode);
+    setMessage("");
   }
 
   async function saveResume(event) {
@@ -98,7 +118,14 @@ function App() {
   }
 
   if (!accessToken) {
-    return <AuthScreen onSubmit={handleAuth} message={message} />;
+    return (
+      <AuthScreen
+        mode={authMode}
+        onModeChange={handleAuthModeChange}
+        onSubmit={handleAuth}
+        message={message}
+      />
+    );
   }
 
   return (
@@ -221,8 +248,7 @@ function App() {
   );
 }
 
-function AuthScreen({ onSubmit, message }) {
-  const [mode, setMode] = useState("register");
+function AuthScreen({ mode, onModeChange, onSubmit, message }) {
   return (
     <main className="auth-screen">
       <section className="auth-panel">
@@ -234,14 +260,15 @@ function AuthScreen({ onSubmit, message }) {
           </div>
         </div>
         <div className="segmented">
-          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Register</button>
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Login</button>
+          <button type="button" className={mode === "register" ? "active" : ""} onClick={() => onModeChange("register")}>Register</button>
+          <button type="button" className={mode === "login" ? "active" : ""} onClick={() => onModeChange("login")}>Login</button>
         </div>
         <form onSubmit={onSubmit} className="stack">
           <input type="hidden" name="mode" value={mode} />
           {mode === "register" && <input name="name" placeholder="Your name" defaultValue="Cloud Student" />}
           <input name="email" type="email" placeholder="Email" defaultValue="student@example.com" />
           <input name="password" type="password" placeholder="Password" defaultValue="verysecurepassword" />
+          {mode === "register" && <p className="field-hint">Password must be at least 10 characters.</p>}
           <button>{mode === "register" ? "Create account" : "Sign in"}</button>
         </form>
         {message && <div className="notice">{message}</div>}
@@ -294,7 +321,7 @@ function makeApi(accessToken, setAccessToken) {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || "Request failed");
+      throw new Error(getApiErrorMessage(error));
     }
     if (response.status === 204) return {};
     return response.json();
@@ -305,6 +332,18 @@ function makeApi(accessToken, setAccessToken) {
     post: (path, body) => request(path, { method: "POST", body: JSON.stringify(body) }),
     patch: (path, body) => request(path, { method: "PATCH", body: JSON.stringify(body) })
   };
+}
+
+function getApiErrorMessage(error) {
+  if (Array.isArray(error)) {
+    return error[0]?.message || "Request failed";
+  }
+
+  if (Array.isArray(error?.errors)) {
+    return error.errors[0]?.message || "Request failed";
+  }
+
+  return error?.error || error?.message || "Request failed";
 }
 
 createRoot(document.getElementById("root")).render(<App />);
