@@ -10,6 +10,8 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      env_file:
+      - apps/api/.env
     environment:
       NODE_ENV: development
       PORT: 4000
@@ -41,6 +43,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      env_file:
+      - apps/api/.env
     environment:
       VITE_API_URL: http://localhost:4000
     depends_on:
