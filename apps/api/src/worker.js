@@ -1,8 +1,9 @@
 import { connectDb } from "./db.js";
 import { IngestionRun } from "./models/IngestionRun.js";
 import { JobPost } from "./models/JobPost.js";
+import { Reminder } from "./models/Reminder.js";
 import { Resume } from "./models/Resume.js";
-import { normalizeJob } from "./services/jobNormalizer.js";
+import { fetchDirectJob } from "./services/directSources.js";
 import { claimNextWorkItem, completeWorkItem, failWorkItem } from "./services/queue.js";
 import { scoreJobAgainstResume } from "./services/scoring.js";
 import { upsertJobs } from "./routes/jobs.js";
@@ -14,16 +15,7 @@ async function processItem(item) {
   if (item.type === "direct-import") {
     const run = await IngestionRun.findById(item.payload.ingestionRunId);
     if (!run) throw new Error("Ingestion run not found");
-    const job = normalizeJob(
-      {
-        title: "Imported Internship / Co-op",
-        company: "Imported Company",
-        location: "Canada / Remote",
-        description: "Imported from a direct job URL. Add details from the posting before tailoring.",
-        url: item.payload.url
-      },
-      { source: run.source }
-    );
+    const job = await fetchDirectJob(item.payload.url);
     const jobs = await upsertJobs(run.userId, [job]);
     run.status = "completed";
     run.itemsImported = jobs.length;
@@ -45,6 +37,13 @@ async function processItem(item) {
       job.match = scoreJobAgainstResume(job, resume);
       await job.save();
     }
+  }
+
+  if (item.type === "send-reminders") {
+    await Reminder.updateMany(
+      { status: "scheduled", dueAt: { $lte: new Date() } },
+      { status: "sent" }
+    );
   }
 }
 

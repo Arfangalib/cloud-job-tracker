@@ -20,6 +20,12 @@ jobRouter.get("/", async (req, res) => {
   res.json({ jobs });
 });
 
+jobRouter.get("/:id", async (req, res) => {
+  const job = await JobPost.findOne({ _id: req.params.id, userId: req.user._id });
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({ job });
+});
+
 jobRouter.post("/search", async (req, res, next) => {
   try {
     const input = z.object({ query: z.string().min(2), location: z.string().optional() }).parse(req.body);

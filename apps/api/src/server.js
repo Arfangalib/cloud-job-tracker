@@ -10,6 +10,7 @@ import { jobRouter } from "./routes/jobs.js";
 import { applicationRouter } from "./routes/applications.js";
 import { ingestionRouter } from "./routes/ingestionRuns.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { reminderRouter } from "./routes/reminders.js";
 
 export function createApp() {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp() {
   app.use("/jobs", jobRouter);
   app.use("/applications", applicationRouter);
   app.use("/ingestion-runs", ingestionRouter);
+  app.use("/reminders", reminderRouter);
   app.use("/webhooks", webhookRouter);
 
   app.use((err, _req, res, _next) => {

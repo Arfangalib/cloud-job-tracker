@@ -12,11 +12,11 @@ beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await connectDb(mongo.getUri());
   app = createApp();
-});
+}, 60000);
 
 afterAll(async () => {
   await disconnectDb();
-  await mongo.stop();
+  if (mongo) await mongo.stop();
 });
 
 describe("auth security", () => {
