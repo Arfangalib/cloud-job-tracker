@@ -20,6 +20,29 @@ afterAll(async () => {
 });
 
 describe("auth security", () => {
+  it("returns validation details for short registration passwords", async () => {
+    const response = await request(app).post("/auth/register").send({
+      name: "Cloud Student",
+      email: "short-password@example.com",
+      password: "short"
+    });
+
+    expect(response.status).toBe(400);
+    expect(Array.isArray(response.body.error)).toBe(true);
+    expect(response.body.error[0].message).toContain("at least 10 character");
+  });
+
+  it("returns validation details for invalid login email", async () => {
+    const response = await request(app).post("/auth/login").send({
+      email: "not-an-email",
+      password: "verysecurepassword"
+    });
+
+    expect(response.status).toBe(400);
+    expect(Array.isArray(response.body.error)).toBe(true);
+    expect(response.body.error[0].path).toContain("email");
+  });
+
   it("registers, stores hashed refresh tokens, rotates refresh tokens, and revokes logout", async () => {
     const register = await request(app).post("/auth/register").send({
       name: "Cloud Student",

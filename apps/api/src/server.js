@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { ZodError } from "zod";
 import { env, isProduction } from "./config/env.js";
 import { apiLimiter } from "./middleware/rateLimits.js";
 import { authRouter } from "./routes/auth.js";
@@ -35,6 +36,10 @@ export function createApp() {
   app.use("/webhooks", webhookRouter);
 
   app.use((err, _req, res, _next) => {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ error: err.errors });
+    }
+
     console.error(err);
     const status = err.status || 500;
     res.status(status).json({
