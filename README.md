@@ -36,12 +36,14 @@ Set these in `apps/api/.env`:
 
 ```bash
 APIFY_TOKEN=your_apify_token
-APIFY_JOB_ACTOR_ID=actor_or_task_id
+APIFY_JOB_ACTOR_ID=bebity~linkedin-jobs-scraper
 APIFY_WEBHOOK_SECRET=shared_secret_for_callbacks
-PUBLIC_API_URL=https://your-api-domain.com
+PUBLIC_API_URL=https://your-api-domain-or-local-tunnel.com
 ```
 
 For local demos without Apify credentials, LinkedIn/Indeed-style imports create a pending ingestion run and can be completed by posting a webhook payload to `/webhooks/apify/job-parsed`.
+
+For local Apify webhooks, expose the API on port 4000 with a public tunnel and set `PUBLIC_API_URL` to that tunnel URL before starting the API. The LinkedIn search import uses Apify actor input fields for job title, location, and row count.
 
 ## Cloud Architecture
 

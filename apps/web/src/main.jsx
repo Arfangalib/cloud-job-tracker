@@ -88,8 +88,12 @@ function App() {
   async function searchJobs(event) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    await api.post("/jobs/search", { query: data.query, location: data.location });
-    setMessage("Demo search imported a matching cloud/SWE internship.");
+    const result = await api.post("/jobs/import-linkedin-search", {
+      title: data.query,
+      location: data.location,
+      rows: Number(data.rows || 25)
+    });
+    setMessage(`LinkedIn import started: ${result.ingestionRun.status}. Apify webhook will finish the ingestion.`);
     await refreshData();
   }
 
@@ -168,9 +172,10 @@ function App() {
         <section className="grid two">
           <Panel title="Search / Import Jobs" icon={<Briefcase size={20} />}>
             <form onSubmit={searchJobs} className="stack">
-              <input name="query" placeholder="Cloud SWE" defaultValue="Cloud SWE" />
+              <input name="query" placeholder="Cloud SWE intern" defaultValue="Cloud SWE intern" />
               <input name="location" placeholder="Canada / Remote" defaultValue="Canada / Remote" />
-              <button>Run demo search</button>
+              <input name="rows" type="number" min="1" max="1000" defaultValue="25" />
+              <button>Import LinkedIn search with Apify</button>
             </form>
             <form onSubmit={importJob} className="stack">
               <input name="url" placeholder="Paste LinkedIn, Indeed, Eluta, Greenhouse, or Lever URL" />

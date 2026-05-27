@@ -5,7 +5,7 @@ import { IngestionRun } from "../models/IngestionRun.js";
 import { JobPost } from "../models/JobPost.js";
 import { Resume } from "../models/Resume.js";
 import { Application } from "../models/Application.js";
-import { startApifyJobImport } from "../services/apify.js";
+import { startApifyJobImport, startLinkedInJobSearchImport } from "../services/apify.js";
 import { detectSource, needsApify, normalizeJob } from "../services/jobNormalizer.js";
 import { enqueue } from "../services/queue.js";
 import { scoreJobAgainstResume } from "../services/scoring.js";
@@ -44,6 +44,51 @@ jobRouter.post("/search", async (req, res, next) => {
     ];
     const created = await upsertJobs(req.user._id, demoJobs);
     res.json({ jobs: created, source: "demo-search" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+jobRouter.post("/import-linkedin-search", async (req, res, next) => {
+  try {
+    const input = z.object({
+      title: z.string().min(2),
+      location: z.string().min(2),
+      rows: z.coerce.number().int().min(1).max(1000).default(25)
+    }).parse(req.body);
+    const sourceUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(
+      input.title
+    )}&location=${encodeURIComponent(input.location)}`;
+    const run = await IngestionRun.create({
+      userId: req.user._id,
+      source: "linkedin",
+      sourceUrl,
+      mode: "apify",
+      status: "pending"
+    });
+
+    try {
+      const apifyRun = await startLinkedInJobSearchImport({
+        title: input.title,
+        location: input.location,
+        rows: input.rows,
+        ingestionRunId: run._id.toString()
+      });
+      Object.assign(run, {
+        status: apifyRun.configured ? "running" : "pending",
+        apifyRunId: apifyRun.apifyRunId,
+        actorId: apifyRun.actorId,
+        datasetId: apifyRun.datasetId,
+        error: apifyRun.configured ? undefined : apifyRun.message
+      });
+      await run.save();
+    } catch (error) {
+      run.status = "failed";
+      run.error = error.message;
+      await run.save();
+    }
+
+    res.status(202).json({ ingestionRun: run });
   } catch (error) {
     next(error);
   }
