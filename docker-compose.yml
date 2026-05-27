@@ -10,7 +10,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-      env_file:
+    env_file:
       - apps/api/.env
     environment:
       NODE_ENV: development
@@ -19,7 +19,6 @@ services:
       CLIENT_ORIGIN: http://localhost:5173
       JWT_ACCESS_SECRET: dev_access_secret_change_me
       REFRESH_TOKEN_PEPPER: dev_refresh_pepper_change_me
-      APIFY_WEBHOOK_SECRET: dev_apify_webhook_secret
     depends_on:
       - mongo
     ports:
@@ -29,13 +28,14 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    env_file:
+      - apps/api/.env
     command: ["npm", "run", "worker"]
     environment:
       NODE_ENV: development
       MONGODB_URI: mongodb://mongo:27017/cloud-job-tracker
       JWT_ACCESS_SECRET: dev_access_secret_change_me
       REFRESH_TOKEN_PEPPER: dev_refresh_pepper_change_me
-      APIFY_WEBHOOK_SECRET: dev_apify_webhook_secret
     depends_on:
       - mongo
 
@@ -43,7 +43,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      env_file:
+    env_file:
       - apps/api/.env
     environment:
       VITE_API_URL: http://localhost:4000
