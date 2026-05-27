@@ -35,8 +35,9 @@ function App() {
 
   async function handleAuth(event) {
     event.preventDefault();
+    const form = event.currentTarget;
     setMessage("");
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const data = Object.fromEntries(new FormData(form));
     const endpoint = data.mode === "register" ? "/auth/register" : "/auth/login";
     const body =
       data.mode === "register"
@@ -47,7 +48,7 @@ function App() {
       const result = await api.post(endpoint, body);
 
       if (data.mode === "register") {
-        event.currentTarget.reset();
+        form.reset();
         setAuthMode("login");
         setMessage("Account created. Please sign in.");
         return;
@@ -334,16 +335,29 @@ function makeApi(accessToken, setAccessToken) {
   };
 }
 
-function getApiErrorMessage(error) {
-  if (Array.isArray(error)) {
-    return error[0]?.message || "Request failed";
+function getApiErrorMessage(errorData) {
+  if (Array.isArray(errorData)) {
+    return errorData[0]?.message || "Request failed";
   }
 
-  if (Array.isArray(error?.errors)) {
-    return error.errors[0]?.message || "Request failed";
+  if (Array.isArray(errorData?.errors)) {
+    return errorData.errors[0]?.message || "Request failed";
   }
 
-  return error?.error || error?.message || "Request failed";
+  if (Array.isArray(errorData?.error)) {
+    return errorData.error[0]?.message || "Request failed";
+  }
+
+  if (typeof errorData?.error === "string" && errorData.error.trim().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(errorData.error);
+      if (parsed[0]?.message) return parsed[0].message;
+    } catch (_error) {
+      // Fall back to the plain error string below.
+    }
+  }
+
+  return errorData?.error || errorData?.message || "Request failed";
 }
 
 createRoot(document.getElementById("root")).render(<App />);
