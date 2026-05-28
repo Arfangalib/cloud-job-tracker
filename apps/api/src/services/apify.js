@@ -9,11 +9,11 @@ export async function startApifyJobImport({ sourceUrl, ingestionRunId }) {
   }
 
   const webhookUrl = buildWebhookUrl(ingestionRunId);
-  const url = buildRunUrl();
+  const url = buildRunUrl({ actorId: normalizeActorId(env.apifyJobActorId) });
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: getApifyHeaders(),
     body: JSON.stringify({
       startUrls: [{ url: sourceUrl }],
       webhookUrl,
@@ -22,7 +22,7 @@ export async function startApifyJobImport({ sourceUrl, ingestionRunId }) {
   });
 
   if (!response.ok) {
-    throw new Error(`Apify run failed to start: ${response.status}`);
+    throw new Error(await getApifyErrorMessage(response, "Apify run failed to start"));
   }
 
   const body = await response.json();
@@ -43,22 +43,26 @@ export async function startLinkedInJobSearchImport({ title, location, rows = 25,
     };
   }
 
-  const webhookUrl = buildWebhookUrl(ingestionRunId);
-  const url = buildRunUrl();
+  const actorId = normalizeActorId(env.apifyJobActorId);
+  const url = buildRunUrl({
+    actorId,
+    maxItems: rows,
+    webhooks: buildRunWebhooks(ingestionRunId)
+  });
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: getApifyHeaders(),
     body: JSON.stringify({
-      title,
+      job_title: title,
       location,
-      rows,
-      webhookUrl
+      jobs_entries: rows,
+      start_jobs: 0
     })
   });
 
   if (!response.ok) {
-    throw new Error(`Apify run failed to start: ${response.status}`);
+    throw new Error(await getApifyErrorMessage(response, "Apify run failed to start"));
   }
 
   const body = await response.json();
@@ -66,7 +70,7 @@ export async function startLinkedInJobSearchImport({ title, location, rows = 25,
   return {
     configured: true,
     apifyRunId: run.id,
-    actorId: run.actId || env.apifyJobActorId,
+    actorId: run.actId || actorId,
     datasetId: run.defaultDatasetId
   };
 }
@@ -78,18 +82,95 @@ export async function fetchApifyDatasetItems(datasetId) {
       env.apifyToken
     )}`
   );
-  if (!response.ok) throw new Error(`Failed to fetch Apify dataset: ${response.status}`);
+  if (!response.ok) throw new Error(await getApifyErrorMessage(response, "Failed to fetch Apify dataset"));
   return response.json();
 }
 
-function buildWebhookUrl(ingestionRunId) {
-  return `${env.publicApiUrl}/webhooks/apify/job-parsed?secret=${encodeURIComponent(
-    env.apifyWebhookSecret
-  )}&ingestionRunId=${ingestionRunId}`;
+async function getApifyErrorMessage(response, prefix) {
+  const body = await readApifyErrorBody(response);
+  const detail = extractApifyErrorDetail(body) || response.statusText || "Request failed";
+  return sanitizeSensitive(`${prefix}: ${response.status} ${detail}`);
 }
 
-function buildRunUrl() {
-  return `https://api.apify.com/v2/acts/${encodeURIComponent(
-    env.apifyJobActorId
-  )}/runs?token=${encodeURIComponent(env.apifyToken)}&waitForFinish=0`;
+async function readApifyErrorBody(response) {
+  const jsonResponse = typeof response.clone === "function" ? response.clone() : response;
+
+  try {
+    return await jsonResponse.json();
+  } catch (_jsonError) {
+    // Fall through to raw text; clone() keeps the original response body readable in real fetch responses.
+  }
+
+  try {
+    return await response.text();
+  } catch (_textError) {
+    return null;
+  }
+}
+
+function extractApifyErrorDetail(body) {
+  if (!body) return "";
+
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    if (!trimmed) return "";
+
+    try {
+      return extractApifyErrorDetail(JSON.parse(trimmed)) || trimmed;
+    } catch (_error) {
+      return trimmed;
+    }
+  }
+
+  if (typeof body.error === "object" && body.error !== null) {
+    return body.error.message || body.error.type || JSON.stringify(body.error);
+  }
+
+  if (typeof body.error === "string") return body.error;
+  if (typeof body.message === "string") return body.message;
+
+  return "";
+}
+
+function sanitizeSensitive(message) {
+  return [env.apifyToken, env.apifyWebhookSecret]
+    .filter(Boolean)
+    .flatMap((secret) => [secret, encodeURIComponent(secret)])
+    .reduce((safeMessage, secret) => safeMessage.split(secret).join("[redacted]"), message);
+}
+
+function getApifyHeaders() {
+  return {
+    authorization: `Bearer ${env.apifyToken}`,
+    "content-type": "application/json"
+  };
+}
+
+function buildRunWebhooks(ingestionRunId) {
+  return [
+    {
+      eventTypes: ["ACTOR.RUN.SUCCEEDED"],
+      requestUrl: buildWebhookUrl(ingestionRunId, { includeSecret: false }),
+      headersTemplate: JSON.stringify({
+        authorization: `Bearer ${env.apifyWebhookSecret}`
+      })
+    }
+  ];
+}
+
+function buildWebhookUrl(ingestionRunId, { includeSecret = true } = {}) {
+  const params = new URLSearchParams({ ingestionRunId });
+  if (includeSecret) params.set("secret", env.apifyWebhookSecret);
+  return `${env.publicApiUrl}/webhooks/apify/job-parsed?${params}`;
+}
+
+function buildRunUrl({ actorId, maxItems, webhooks } = {}) {
+  const params = new URLSearchParams({ waitForFinish: "0" });
+  if (maxItems) params.set("maxItems", String(maxItems));
+  if (webhooks) params.set("webhooks", Buffer.from(JSON.stringify(webhooks)).toString("base64"));
+  return `https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs?${params}`;
+}
+
+function normalizeActorId(actorId) {
+  return actorId.replaceAll("/", "~");
 }

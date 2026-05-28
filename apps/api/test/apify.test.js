@@ -54,7 +54,7 @@ describe("Apify LinkedIn imports", () => {
       json: async () => ({
         data: {
           id: "run-123",
-          actId: "bebity~linkedin-jobs-scraper",
+          actId: "worldunboxer~rapid-linkedin-scraper",
           defaultDatasetId: "dataset-123"
         }
       })
@@ -71,17 +71,97 @@ describe("Apify LinkedIn imports", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toContain("bebity~linkedin-jobs-scraper");
+    expect(url).toContain("worldunboxer~rapid-linkedin-scraper");
     expect(url).toContain("waitForFinish=0");
+    expect(url).toContain("maxItems=5");
+    expect(url).not.toContain("test-apify-token");
+    expect(options.headers).toMatchObject({
+      authorization: "Bearer test-apify-token"
+    });
     const payload = JSON.parse(options.body);
     expect(payload).toMatchObject({
-      title: "Cloud SWE intern",
+      job_title: "Cloud SWE intern",
       location: "Canada / Remote",
-      rows: 5
+      jobs_entries: 5,
+      start_jobs: 0
     });
-    expect(payload.webhookUrl).toContain("/webhooks/apify/job-parsed");
-    expect(payload.webhookUrl).toContain("ingestionRunId=");
+    expect(payload.webhookUrl).toBeUndefined();
     expect(payload.startUrls).toBeUndefined();
+
+    const runUrl = new URL(url);
+    const webhooks = JSON.parse(Buffer.from(runUrl.searchParams.get("webhooks"), "base64").toString("utf8"));
+    expect(webhooks[0]).toMatchObject({
+      eventTypes: ["ACTOR.RUN.SUCCEEDED"],
+      requestUrl: expect.stringContaining("/webhooks/apify/job-parsed"),
+      headersTemplate: expect.stringContaining("Bearer test-webhook-secret")
+    });
+    expect(webhooks[0].requestUrl).toContain("ingestionRunId=");
+    expect(webhooks[0].requestUrl).not.toContain("secret=");
+  });
+
+  it("marks LinkedIn Apify start failures and logs the parsed error", async () => {
+    configureApifyEnv();
+    const consoleMock = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({
+        error: {
+          type: "unauthorized",
+          message: "Token is invalid."
+        }
+      })
+    });
+    const token = await registerAndToken();
+
+    const response = await request(app)
+      .post("/jobs/import-linkedin-search")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "Cloud SWE intern", location: "Canada / Remote", rows: 5 });
+
+    expect(response.status).toBe(202);
+    expect(response.body.ingestionRun.status).toBe("failed");
+    expect(response.body.ingestionRun.error).toContain("401");
+    expect(response.body.ingestionRun.error).toContain("Token is invalid.");
+    expect(consoleMock).toHaveBeenCalledTimes(1);
+
+    const [logMessage, logDetails] = consoleMock.mock.calls[0];
+    expect(logMessage).toBe("APIFY IMPORT ERROR");
+    expect(logDetails).toMatchObject({
+      importType: "linkedin-search",
+      message: expect.stringContaining("Token is invalid.")
+    });
+    expect(JSON.stringify(consoleMock.mock.calls)).not.toContain(env.apifyToken);
+  });
+
+  it("falls back to sanitized raw Apify error text", async () => {
+    configureApifyEnv();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      clone: () => ({
+        json: async () => {
+          throw new Error("Not JSON");
+        }
+      }),
+      text: async () => `Actor temporarily unavailable for ${env.apifyToken}`
+    });
+    const token = await registerAndToken();
+
+    const response = await request(app)
+      .post("/jobs/import-linkedin-search")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "Cloud SWE intern", location: "Canada / Remote", rows: 5 });
+
+    expect(response.status).toBe(202);
+    expect(response.body.ingestionRun.status).toBe("failed");
+    expect(response.body.ingestionRun.error).toContain("503");
+    expect(response.body.ingestionRun.error).toContain("Actor temporarily unavailable");
+    expect(response.body.ingestionRun.error).toContain("[redacted]");
+    expect(response.body.ingestionRun.error).not.toContain(env.apifyToken);
   });
 
   it("queues normalized jobs from Apify webhook inline items", async () => {
@@ -91,7 +171,7 @@ describe("Apify LinkedIn imports", () => {
       json: async () => ({
         data: {
           id: "run-456",
-          actId: "bebity~linkedin-jobs-scraper",
+          actId: "worldunboxer~rapid-linkedin-scraper",
           defaultDatasetId: "dataset-456"
         }
       })
@@ -104,16 +184,18 @@ describe("Apify LinkedIn imports", () => {
     const runId = importResponse.body.ingestionRun._id;
 
     const webhookResponse = await request(app)
-      .post(`/webhooks/apify/job-parsed?secret=${encodeURIComponent(env.apifyWebhookSecret)}&ingestionRunId=${runId}`)
+      .post(`/webhooks/apify/job-parsed?ingestionRunId=${runId}`)
+      .set("Authorization", `Bearer ${env.apifyWebhookSecret}`)
       .send({
         datasetId: "dataset-456",
         items: [
           {
-            title: "Cloud SWE Intern",
-            companyName: "Northstar Cloud Labs",
-            location: "Remote Canada",
-            description: "React, Node, AWS, Docker, Terraform",
-            link: "https://www.linkedin.com/jobs/view/123"
+            job_title: "Cloud SWE Intern",
+            company_name: "Northstar Cloud Labs",
+            job_location: "Remote Canada",
+            job_description_plain: "React, Node, AWS, Docker, Terraform",
+            job_url: "https://www.linkedin.com/jobs/view/123",
+            job_id: "123"
           }
         ]
       });
@@ -129,7 +211,9 @@ describe("Apify LinkedIn imports", () => {
     expect(item.payload.jobs[0]).toMatchObject({
       title: "Cloud SWE Intern",
       company: "Northstar Cloud Labs",
-      source: "linkedin"
+      source: "linkedin",
+      sourceUrl: "https://www.linkedin.com/jobs/view/123",
+      externalId: "123"
     });
   });
 });
@@ -146,7 +230,7 @@ async function registerAndToken() {
 
 function configureApifyEnv() {
   env.apifyToken = "test-apify-token";
-  env.apifyJobActorId = "bebity~linkedin-jobs-scraper";
+  env.apifyJobActorId = "worldunboxer/rapid-linkedin-scraper";
   env.apifyWebhookSecret = "test-webhook-secret";
   env.publicApiUrl = "https://example-tunnel.test";
 }

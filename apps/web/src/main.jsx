@@ -14,6 +14,7 @@ function App() {
   const [draft, setDraft] = useState(null);
   const [message, setMessage] = useState("");
   const [authMode, setAuthMode] = useState("register");
+  const [searchLocation, setSearchLocation] = useState("Vancouver, British Columbia, Canada");
 
   const api = useMemo(() => makeApi(accessToken, setAccessToken), [accessToken]);
 
@@ -81,7 +82,7 @@ function App() {
     const data = Object.fromEntries(new FormData(event.currentTarget));
     const result = await api.post("/jobs/import-url", { url: data.url });
     event.currentTarget.reset();
-    setMessage(`Import started: ${result.ingestionRun.status}. Worker/webhook will finish the ingestion.`);
+    setMessage(formatImportNotice(result.ingestionRun, "Import", "Worker/webhook will finish the ingestion."));
     await refreshData();
   }
 
@@ -93,7 +94,7 @@ function App() {
       location: data.location,
       rows: Number(data.rows || 25)
     });
-    setMessage(`LinkedIn import started: ${result.ingestionRun.status}. Apify webhook will finish the ingestion.`);
+    setMessage(formatImportNotice(result.ingestionRun, "LinkedIn import", "Apify webhook will finish the ingestion."));
     await refreshData();
   }
 
@@ -173,7 +174,23 @@ function App() {
           <Panel title="Search / Import Jobs" icon={<Briefcase size={20} />}>
             <form onSubmit={searchJobs} className="stack">
               <input name="query" placeholder="Cloud SWE intern" defaultValue="Cloud SWE intern" />
-              <input name="location" placeholder="Canada / Remote" defaultValue="Canada / Remote" />
+              <input
+                name="location"
+                placeholder="Vancouver, British Columbia, Canada"
+                value={searchLocation}
+                onChange={(event) => setSearchLocation(event.target.value)}
+              />
+              <div className="quick-locations" aria-label="Quick locations">
+                {[
+                  "Vancouver, British Columbia, Canada",
+                  "Canada / Remote",
+                  "Toronto, Ontario, Canada"
+                ].map((location) => (
+                  <button type="button" key={location} onClick={() => setSearchLocation(location)}>
+                    {location.split(",")[0]}
+                  </button>
+                ))}
+              </div>
               <input name="rows" type="number" min="1" max="1000" defaultValue="25" />
               <button>Import LinkedIn search with Apify</button>
             </form>
@@ -211,6 +228,19 @@ function App() {
                   </div>
                   <div className="job-actions">
                     <strong>{job.match?.score || 0}% fit</strong>
+                    {isHttpUrl(job.sourceUrl) ? (
+                      <a
+                        className="button-link"
+                        href={job.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`View posting for ${job.title}`}
+                      >
+                        View posting
+                      </a>
+                    ) : (
+                      <span className="no-posting-link">No posting link</span>
+                    )}
                     <button onClick={() => scoreJob(job._id)}>Score</button>
                     <button onClick={() => tailorJob(job._id)}>Tailor</button>
                     {app && (
@@ -363,6 +393,27 @@ function getApiErrorMessage(errorData) {
   }
 
   return errorData?.error || errorData?.message || "Request failed";
+}
+
+function formatImportNotice(run, label, completionMessage) {
+  if (run?.status === "failed") {
+    return `${label} failed: ${run.error || "Apify could not start the run."}`;
+  }
+
+  if (run?.status === "pending") {
+    return `${label} pending: ${run.error || "Apify is not configured yet."}`;
+  }
+
+  return `${label} started: ${run?.status || "running"}. ${completionMessage}`;
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_error) {
+    return false;
+  }
 }
 
 createRoot(document.getElementById("root")).render(<App />);

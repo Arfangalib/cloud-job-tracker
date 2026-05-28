@@ -15,21 +15,23 @@ export function needsApify(url = "") {
 }
 
 export function normalizeJob(raw, fallback = {}) {
-  const title = raw.title || raw.position || raw.name || fallback.title || "Imported role";
-  const company = raw.company || raw.companyName || raw.organization || fallback.company || "Unknown company";
-  const description = raw.description || raw.text || raw.jobDescription || "";
-  const sourceUrl = raw.url || raw.applyUrl || raw.link || fallback.sourceUrl;
+  const title = raw.title || raw.job_title || raw.position || raw.positionName || raw.name || fallback.title || "Imported role";
+  const company =
+    raw.company || raw.company_name || raw.companyName || raw.employer || raw.organization || fallback.company || "Unknown company";
+  const description = raw.job_description_plain || raw.description || raw.job_description || raw.text || raw.jobDescription || "";
+  const sourceUrl = raw.url || raw.job_url || raw.applyUrl || raw.apply_link || raw.link || fallback.sourceUrl;
+  const location = raw.location || raw.job_location || raw.jobLocation || raw.locations?.[0]?.name || fallback.location || "Remote / Canada";
 
   return {
     source: fallback.source || detectSource(sourceUrl),
     sourceUrl,
-    externalId: raw.id || raw.jobId || raw.externalId,
+    externalId: raw.id || raw.job_id || raw.jobId || raw.externalId,
     title: String(title).trim(),
     company: String(company).trim(),
-    location: raw.location || raw.locations?.[0]?.name || fallback.location || "Remote / Canada",
+    location: String(location).trim(),
     description,
     employmentType: raw.employmentType || raw.type || "Internship / Co-op",
-    remoteType: /remote/i.test(`${raw.location || ""} ${description}`) ? "remote" : "unspecified",
+    remoteType: /remote/i.test(`${location} ${description}`) ? "remote" : "unspecified",
     deadline: raw.deadline ? new Date(raw.deadline) : undefined,
     keywords: extractKeywords(`${title} ${description}`)
   };

@@ -84,7 +84,8 @@ jobRouter.post("/import-linkedin-search", async (req, res, next) => {
       await run.save();
     } catch (error) {
       run.status = "failed";
-      run.error = error.message;
+      run.error = getErrorMessage(error);
+      logApifyImportError("linkedin-search", run, error);
       await run.save();
     }
 
@@ -114,7 +115,8 @@ jobRouter.post("/import-url", async (req, res, next) => {
         await run.save();
       } catch (error) {
         run.status = "failed";
-        run.error = error.message;
+        run.error = getErrorMessage(error);
+        logApifyImportError("url-import", run, error);
         await run.save();
       }
       return res.status(202).json({ ingestionRun: run });
@@ -165,4 +167,17 @@ export async function upsertJobs(userId, jobs) {
     created.push(saved);
   }
   return created;
+}
+
+function logApifyImportError(importType, run, error) {
+  console.error("APIFY IMPORT ERROR", {
+    importType,
+    ingestionRunId: run._id.toString(),
+    actorId: run.actorId,
+    message: getErrorMessage(error)
+  });
+}
+
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }

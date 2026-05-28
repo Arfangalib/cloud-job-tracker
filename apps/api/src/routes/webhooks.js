@@ -9,7 +9,7 @@ export const webhookRouter = express.Router();
 
 webhookRouter.post("/apify/job-parsed", async (req, res, next) => {
   try {
-    const secret = req.get("x-apify-webhook-secret") || req.query.secret;
+    const secret = req.get("x-apify-webhook-secret") || getBearerToken(req) || req.query.secret;
     if (secret !== env.apifyWebhookSecret) return res.status(401).json({ error: "Invalid webhook secret" });
 
     const ingestionRunId = req.query.ingestionRunId || req.body.ingestionRunId || req.body.resource?.defaultKeyValueStoreId;
@@ -40,3 +40,8 @@ webhookRouter.post("/apify/job-parsed", async (req, res, next) => {
     next(error);
   }
 });
+
+function getBearerToken(req) {
+  const header = req.get("authorization") || "";
+  return header.toLowerCase().startsWith("bearer ") ? header.slice(7) : "";
+}

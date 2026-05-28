@@ -24,4 +24,29 @@ describe("job matching and tailoring", () => {
     expect(draft.guardrails.doNotInvent).toContain("certifications");
     expect(draft.guardrails.onlyAddIfTrue).toContain("terraform");
   });
+
+  it("normalizes worldunboxer LinkedIn scraper fields", () => {
+    const job = normalizeJob(
+      {
+        job_title: "Cloud SWE Intern",
+        company_name: "Northstar Cloud Labs",
+        job_location: "Remote Canada",
+        job_description_plain: "React, Node, AWS, Docker, Terraform",
+        job_url: "https://www.linkedin.com/jobs/view/123",
+        job_id: "123"
+      },
+      { source: "linkedin" }
+    );
+
+    expect(job).toMatchObject({
+      title: "Cloud SWE Intern",
+      company: "Northstar Cloud Labs",
+      location: "Remote Canada",
+      sourceUrl: "https://www.linkedin.com/jobs/view/123",
+      source: "linkedin",
+      externalId: "123",
+      remoteType: "remote"
+    });
+    expect(job.keywords).toContain("react");
+  });
 });
