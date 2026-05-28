@@ -15,9 +15,22 @@ export const jobRouter = express.Router();
 
 jobRouter.use(requireAuth);
 
-jobRouter.get("/", async (req, res) => {
-  const jobs = await JobPost.find({ userId: req.user._id }).sort({ createdAt: -1 });
-  res.json({ jobs });
+jobRouter.get("/", async (req, res, next) => {
+  try {
+    const input = z.object({ recentDays: z.coerce.number().int().min(1).max(365).optional() }).parse(req.query);
+    const query = { userId: req.user._id };
+
+    if (input.recentDays) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - input.recentDays);
+      query.createdAt = { $gte: cutoff };
+    }
+
+    const jobs = await JobPost.find(query).sort({ createdAt: -1 });
+    res.json({ jobs });
+  } catch (error) {
+    next(error);
+  }
 });
 
 jobRouter.get("/:id", async (req, res) => {
@@ -134,7 +147,7 @@ jobRouter.post("/:id/score", async (req, res) => {
   if (!job) return res.status(404).json({ error: "Job not found" });
   const resume = await Resume.findOne({ userId: req.user._id, isPrimary: true }).sort({ createdAt: -1 });
   if (!resume) return res.status(400).json({ error: "Upload a resume before scoring jobs" });
-  job.match = scoreJobAgainstResume(job, resume);
+  job.match = await scoreJobAgainstResume(job, resume);
   await job.save();
   res.json({ job });
 });
@@ -145,10 +158,10 @@ jobRouter.post("/:id/tailor", async (req, res) => {
   const resume = await Resume.findOne({ userId: req.user._id, isPrimary: true }).sort({ createdAt: -1 });
   if (!resume) return res.status(400).json({ error: "Upload a resume before tailoring" });
   if (!job.match?.score) {
-    job.match = scoreJobAgainstResume(job, resume);
+    job.match = await scoreJobAgainstResume(job, resume);
     await job.save();
   }
-  res.json({ draft: buildTailoredDraft({ job, resume }) });
+  res.json({ draft: await buildTailoredDraft({ job, resume }) });
 });
 
 export async function upsertJobs(userId, jobs) {

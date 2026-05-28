@@ -15,17 +15,25 @@ function App() {
   const [message, setMessage] = useState("");
   const [authMode, setAuthMode] = useState("register");
   const [searchLocation, setSearchLocation] = useState("Vancouver, British Columbia, Canada");
+  const [jobRecentDays, setJobRecentDays] = useState("");
+  const [busyJobAction, setBusyJobAction] = useState({ jobId: "", action: "" });
 
   const api = useMemo(() => makeApi(accessToken, setAccessToken), [accessToken]);
 
   useEffect(() => {
     if (!accessToken) return;
     refreshData();
-  }, [accessToken]);
+  }, [accessToken, jobRecentDays]);
+
+  useEffect(() => {
+    if (!draft) return;
+    document.getElementById("tailoring-draft")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [draft]);
 
   async function refreshData() {
+    const jobsPath = jobRecentDays ? `/jobs?recentDays=${jobRecentDays}` : "/jobs";
     const [jobData, appData, resumeData] = await Promise.all([
-      api.get("/jobs"),
+      api.get(jobsPath),
       api.get("/applications"),
       api.get("/resumes")
     ]);
@@ -70,18 +78,20 @@ function App() {
 
   async function saveResume(event) {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
     await api.post("/resumes", { title: data.title, rawText: data.rawText, isPrimary: true });
-    event.currentTarget.reset();
+    form.reset();
     setMessage("Resume parsed and saved.");
     await refreshData();
   }
 
   async function importJob(event) {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
     const result = await api.post("/jobs/import-url", { url: data.url });
-    event.currentTarget.reset();
+    form.reset();
     setMessage(formatImportNotice(result.ingestionRun, "Import", "Worker/webhook will finish the ingestion."));
     await refreshData();
   }
@@ -99,13 +109,31 @@ function App() {
   }
 
   async function scoreJob(jobId) {
-    const result = await api.post(`/jobs/${jobId}/score`, {});
-    setJobs((current) => current.map((job) => (job._id === jobId ? result.job : job)));
+    setBusyJobAction({ jobId, action: "score" });
+    setMessage("Scoring job against your primary resume...");
+    try {
+      const result = await api.post(`/jobs/${jobId}/score`, {});
+      setJobs((current) => current.map((job) => (job._id === jobId ? result.job : job)));
+      setMessage(`Score updated: ${result.job.match?.score || 0}% fit.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyJobAction({ jobId: "", action: "" });
+    }
   }
 
   async function tailorJob(jobId) {
-    const result = await api.post(`/jobs/${jobId}/tailor`, {});
-    setDraft(result.draft);
+    setBusyJobAction({ jobId, action: "tailor" });
+    setMessage("Generating tailored draft...");
+    try {
+      const result = await api.post(`/jobs/${jobId}/tailor`, {});
+      setDraft(result.draft);
+      setMessage("Tailored draft generated.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyJobAction({ jobId: "", action: "" });
+    }
   }
 
   async function updateStatus(application, status) {
@@ -214,9 +242,27 @@ function App() {
         </section>
 
         <Panel title="Job Matches" icon={<Sparkles size={20} />}>
+          <div className="panel-toolbar" aria-label="Job recency filter">
+            <button
+              type="button"
+              className={jobRecentDays === "" ? "active" : ""}
+              onClick={() => setJobRecentDays("")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={jobRecentDays === "7" ? "active" : ""}
+              onClick={() => setJobRecentDays("7")}
+            >
+              Last 7 days
+            </button>
+          </div>
           <div className="job-list">
             {jobs.map((job) => {
               const app = applications.find((item) => item.jobId?._id === job._id || item.jobId === job._id);
+              const isScoring = busyJobAction.jobId === job._id && busyJobAction.action === "score";
+              const isTailoring = busyJobAction.jobId === job._id && busyJobAction.action === "tailor";
               return (
                 <article className="job-card" key={job._id}>
                   <div>
@@ -241,8 +287,12 @@ function App() {
                     ) : (
                       <span className="no-posting-link">No posting link</span>
                     )}
-                    <button onClick={() => scoreJob(job._id)}>Score</button>
-                    <button onClick={() => tailorJob(job._id)}>Tailor</button>
+                    <button disabled={isScoring} onClick={() => scoreJob(job._id)}>
+                      {isScoring ? "Scoring..." : "Score"}
+                    </button>
+                    <button disabled={isTailoring} onClick={() => tailorJob(job._id)}>
+                      {isTailoring ? "Tailoring..." : "Tailor"}
+                    </button>
                     {app && (
                       <select value={app.status} onChange={(event) => updateStatus(app, event.target.value)}>
                         {["saved", "tailoring", "applied", "interview", "rejected", "offer"].map((status) => (
@@ -259,7 +309,7 @@ function App() {
         </Panel>
 
         {draft && (
-          <Panel title="ATS Tailoring Draft" icon={<FileText size={20} />}>
+          <Panel id="tailoring-draft" title="ATS Tailoring Draft" icon={<FileText size={20} />}>
             <div className="draft">
               <h3>{draft.resumeHeadline}</h3>
               <ul>{draft.bulletSuggestions.map((item) => <li key={item}>{item}</li>)}</ul>

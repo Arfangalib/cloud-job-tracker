@@ -15,7 +15,10 @@ export const env = {
   apifyJobActorId: process.env.APIFY_JOB_ACTOR_ID || "",
   apifyWebhookSecret: process.env.APIFY_WEBHOOK_SECRET || "dev_apify_webhook_secret",
   publicApiUrl: process.env.PUBLIC_API_URL || "http://localhost:4000",
-  aiProvider: process.env.AI_PROVIDER || "mock"
+  aiProvider: process.env.AI_PROVIDER || "mock",
+  openaiApiKey: process.env.OPENAI_API_KEY || "",
+  openaiScoringModel: process.env.OPENAI_SCORING_MODEL || "gpt-5.4-mini",
+  openaiTailorModel: process.env.OPENAI_TAILOR_MODEL || "gpt-5.4"
 };
 
 export const isProduction = env.nodeEnv === "production";

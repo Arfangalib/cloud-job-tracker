@@ -39,11 +39,17 @@ APIFY_TOKEN=your_apify_token
 APIFY_JOB_ACTOR_ID=worldunboxer~rapid-linkedin-scraper
 APIFY_WEBHOOK_SECRET=shared_secret_for_callbacks
 PUBLIC_API_URL=https://your-api-domain-or-local-tunnel.com
+AI_PROVIDER=mock
+OPENAI_API_KEY=
+OPENAI_SCORING_MODEL=gpt-5.4-mini
+OPENAI_TAILOR_MODEL=gpt-5.4
 ```
 
 For local demos without Apify credentials, LinkedIn/Indeed-style imports create a pending ingestion run and can be completed by posting a webhook payload to `/webhooks/apify/job-parsed`.
 
 For local Apify webhooks, expose the API on port 4000 with a public tunnel and set `PUBLIC_API_URL` to that tunnel URL before starting the API. The LinkedIn search import is currently mapped to the `worldunboxer/rapid-linkedin-scraper` input fields for job title, location, and row count.
+
+Set `AI_PROVIDER=openai` and provide `OPENAI_API_KEY` to enable AI scoring and tailoring. When the provider is `mock` or the key is missing, the app keeps using deterministic local scoring/tailoring fallbacks.
 
 ## Cloud Architecture
 

@@ -40,6 +40,11 @@ button:hover,
   background: #104338;
 }
 
+button:disabled {
+  background: #9cafaa;
+  cursor: wait;
+}
+
 .button-link {
   text-decoration: none;
 }
@@ -273,6 +278,27 @@ h1 {
 
 .quick-locations button:hover {
   background: #dfece6;
+}
+
+.panel-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.panel-toolbar button {
+  background: #eef4f1;
+  border: 1px solid #d9e4dd;
+  color: #315449;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.panel-toolbar button.active,
+.panel-toolbar button:hover {
+  background: #185b4c;
+  color: white;
 }
 
 .field-hint {

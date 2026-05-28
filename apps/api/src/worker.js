@@ -34,7 +34,7 @@ async function processItem(item) {
       Resume.findOne({ userId: item.payload.userId, isPrimary: true }).sort({ createdAt: -1 })
     ]);
     if (job && resume) {
-      job.match = scoreJobAgainstResume(job, resume);
+      job.match = await scoreJobAgainstResume(job, resume);
       await job.save();
     }
   }
