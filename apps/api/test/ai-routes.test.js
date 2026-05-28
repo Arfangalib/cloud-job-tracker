@@ -1,6 +1,6 @@
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../src/config/env.js";
 import { connectDb, disconnectDb } from "../src/db.js";
 import { JobPost } from "../src/models/JobPost.js";
@@ -23,6 +23,14 @@ beforeAll(async () => {
   await connectDb(mongo.getUri());
   app = createApp();
 }, 60000);
+
+beforeEach(() => {
+  env.aiProvider = "mock";
+  env.openaiApiKey = "";
+  env.openaiScoringModel = "gpt-5.4-mini";
+  env.openaiTailorModel = "gpt-5.4";
+  setOpenAiClientForTests(undefined);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -92,6 +100,22 @@ describe("AI job routes", () => {
       }
     });
     expect(response.body.draft.bulletSuggestions[0]).toContain("React");
+  });
+
+  it("returns helpful errors before AI work when no primary resume exists", async () => {
+    const { token, userId } = await registerAndToken();
+    const job = await createJob(userId);
+
+    const scoreResponse = await request(app).post(`/jobs/${job._id}/score`).set("Authorization", `Bearer ${token}`).send({});
+    const tailorResponse = await request(app)
+      .post(`/jobs/${job._id}/tailor`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({});
+
+    expect(scoreResponse.status).toBe(400);
+    expect(scoreResponse.body.error).toBe("Upload a resume before scoring jobs");
+    expect(tailorResponse.status).toBe(400);
+    expect(tailorResponse.body.error).toBe("Upload a resume before tailoring");
   });
 
   it("filters recent jobs without changing the default all-jobs response", async () => {

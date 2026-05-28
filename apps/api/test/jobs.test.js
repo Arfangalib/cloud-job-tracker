@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../src/config/env.js";
 import { setOpenAiClientForTests } from "../src/services/openaiClient.js";
 import { normalizeJob } from "../src/services/jobNormalizer.js";
@@ -12,6 +12,14 @@ const originalEnv = {
   openaiScoringModel: env.openaiScoringModel,
   openaiTailorModel: env.openaiTailorModel
 };
+
+beforeEach(() => {
+  env.aiProvider = "mock";
+  env.openaiApiKey = "";
+  env.openaiScoringModel = "gpt-5.4-mini";
+  env.openaiTailorModel = "gpt-5.4";
+  setOpenAiClientForTests(undefined);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -130,6 +138,33 @@ describe("job matching and tailoring", () => {
     expect(match.missingKeywords).toContain("terraform");
   });
 
+  it("falls back without calling OpenAI when the API key is missing", async () => {
+    env.aiProvider = "openai";
+    env.openaiApiKey = "";
+    const createSpy = vi.fn(async () => {
+      throw new Error("OpenAI should not be called without a key");
+    });
+    setOpenAiClientForTests({ responses: { create: createSpy } });
+
+    const job = {
+      title: "Cloud SWE Intern",
+      company: "Acme",
+      description: "React, AWS, Terraform",
+      keywords: ["react", "aws", "terraform"]
+    };
+    const resume = {
+      rawText: "Built React and AWS projects.",
+      parsed: parseResume("Built React and AWS projects.")
+    };
+
+    const match = await scoreJobAgainstResume(job, resume);
+    const draft = await buildTailoredDraft({ job: { ...job, match }, resume });
+
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(match.strongMatches).toContain("react");
+    expect(draft.guardrails.onlyAddIfTrue).toContain("terraform");
+  });
+
   it("uses structured OpenAI tailoring when configured", async () => {
     env.aiProvider = "openai";
     env.openaiApiKey = "test-openai-key";
@@ -169,5 +204,36 @@ describe("job matching and tailoring", () => {
       }
     });
     expect(draft.bulletSuggestions[0]).toContain("React");
+  });
+
+  it("falls back when OpenAI tailoring fails", async () => {
+    env.aiProvider = "openai";
+    env.openaiApiKey = "test-openai-key";
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setOpenAiClientForTests({
+      responses: {
+        create: async () => {
+          throw new Error("model unavailable");
+        }
+      }
+    });
+
+    const draft = await buildTailoredDraft({
+      job: {
+        title: "Cloud SWE Intern",
+        company: "Acme",
+        description: "React, AWS, Terraform",
+        keywords: ["react", "aws", "terraform"],
+        match: { strongMatches: ["react", "aws"], missingKeywords: ["terraform"] }
+      },
+      resume: {
+        rawText: "Built React and AWS projects.",
+        parsed: parseResume("Built React and AWS projects.")
+      }
+    });
+
+    expect(draft.resumeHeadline).toContain("Cloud SWE Intern");
+    expect(draft.guardrails.doNotInvent).toContain("certifications");
+    expect(draft.guardrails.onlyAddIfTrue).toContain("terraform");
   });
 });
