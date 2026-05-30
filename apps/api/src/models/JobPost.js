@@ -13,6 +13,7 @@ const jobPostSchema = new mongoose.Schema(
     employmentType: String,
     remoteType: String,
     deadline: Date,
+    postedAt: Date,
     keywords: [String],
     match: {
       score: { type: Number, default: 0 },
@@ -30,5 +31,8 @@ const jobPostSchema = new mongoose.Schema(
 );
 
 jobPostSchema.index({ userId: 1, sourceUrl: 1 }, { unique: true });
+jobPostSchema.index({ userId: 1, postedAt: -1 });
+// Backs free-text job search (title/company/description/keywords).
+jobPostSchema.index({ title: "text", company: "text", description: "text", keywords: "text" });
 
 export const JobPost = mongoose.model("JobPost", jobPostSchema);

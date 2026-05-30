@@ -33,8 +33,48 @@ export function normalizeJob(raw, fallback = {}) {
     employmentType: raw.employmentType || raw.type || "Internship / Co-op",
     remoteType: /remote/i.test(`${location} ${description}`) ? "remote" : "unspecified",
     deadline: raw.deadline ? new Date(raw.deadline) : undefined,
+    postedAt: parsePostedAt(raw),
     keywords: extractKeywords(`${title} ${description}`)
   };
+}
+
+// Pull a real posting date from the many shapes scrapers/ATS APIs return.
+// Falls back to undefined so the document's createdAt is used at query time.
+export function parsePostedAt(raw = {}) {
+  const candidates = [
+    raw.postedAt,
+    raw.posted_at,
+    raw.postedDate,
+    raw.posted_date,
+    raw.datePosted,
+    raw.date_posted,
+    raw.listedAt,
+    raw.listed_at,
+    raw.publishedAt,
+    raw.published_at,
+    raw.updated_at, // Greenhouse
+    raw.updatedAt,
+    raw.createdAt, // Lever (ms epoch)
+    raw.created_at
+  ];
+  for (const value of candidates) {
+    const parsed = toDate(value);
+    if (parsed) return parsed;
+  }
+  return undefined;
+}
+
+function toDate(value) {
+  if (value == null || value === "") return undefined;
+  // Numeric epoch (seconds or milliseconds).
+  if (typeof value === "number" || /^\d+$/.test(String(value))) {
+    const num = Number(value);
+    const ms = num < 1e12 ? num * 1000 : num; // treat 10-digit values as seconds
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function safeHost(url) {

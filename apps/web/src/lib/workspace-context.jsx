@@ -11,15 +11,15 @@ export function WorkspaceProvider({ children }) {
   const [applications, setApplications] = useState([]);
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(false);
-  // Recency filter in days; null means "all". Phase 4 upgrades this to hour
-  // granularity (e.g. 24h) backed by a real postedAt field.
-  const [recencyDays, setRecencyDays] = useState(null);
+  // Recency filter in hours; null means "all". Backed by the job's postedAt
+  // (falling back to import time) so "last 24 hours" is honest.
+  const [recencyHours, setRecencyHours] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoading(true);
     try {
-      const jobsPath = recencyDays ? `/jobs?recentDays=${recencyDays}` : "/jobs";
+      const jobsPath = recencyHours ? `/jobs?recentHours=${recencyHours}` : "/jobs";
       const [jobData, appData, resumeData] = await Promise.all([
         api.get(jobsPath),
         api.get("/applications"),
@@ -33,7 +33,7 @@ export function WorkspaceProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [api, isAuthenticated, recencyDays]);
+  }, [api, isAuthenticated, recencyHours]);
 
   useEffect(() => {
     refresh();
@@ -65,6 +65,14 @@ export function WorkspaceProvider({ children }) {
       return result;
     },
     [api, refresh]
+  );
+
+  const searchSavedJobs = useCallback(
+    async (params) => {
+      const result = await api.post("/jobs/search", params);
+      return result.jobs || [];
+    },
+    [api]
   );
 
   const scoreJob = useCallback(
@@ -144,11 +152,12 @@ export function WorkspaceProvider({ children }) {
       applications,
       resumes,
       loading,
-      recencyDays,
-      setRecencyDays,
+      recencyHours,
+      setRecencyHours,
       refresh,
       importLinkedInSearch,
       importUrl,
+      searchSavedJobs,
       scoreJob,
       tailorJob,
       updateStatus,
@@ -162,10 +171,11 @@ export function WorkspaceProvider({ children }) {
       applications,
       resumes,
       loading,
-      recencyDays,
+      recencyHours,
       refresh,
       importLinkedInSearch,
       importUrl,
+      searchSavedJobs,
       scoreJob,
       tailorJob,
       updateStatus,

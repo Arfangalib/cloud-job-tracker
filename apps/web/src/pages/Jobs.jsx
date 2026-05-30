@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Briefcase, LinkIcon, Search } from "lucide-react";
+import { Briefcase, LinkIcon, Search, X } from "lucide-react";
 import { Topbar } from "../components/Topbar.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.jsx";
 import { Button } from "../components/ui/button.jsx";
@@ -17,27 +17,39 @@ const QUICK_LOCATIONS = [
   "Toronto, Ontario, Canada"
 ];
 
-// Phase 1 ships day-granularity presets backed by the existing recentDays API.
-// Phase 4 adds a 24h preset + custom input backed by postedAt.
+// Recency presets backed by the postedAt-aware recentHours filter.
 const RECENCY_PRESETS = [
-  { label: "All", days: null },
-  { label: "Last 7 days", days: 7 },
-  { label: "Last 30 days", days: 30 }
+  { label: "All", hours: null },
+  { label: "24h", hours: 24 },
+  { label: "7d", hours: 168 },
+  { label: "30d", hours: 720 }
 ];
 
 export function Jobs() {
   const {
     jobs,
-    recencyDays,
-    setRecencyDays,
+    recencyHours,
+    setRecencyHours,
     importLinkedInSearch,
-    importUrl
+    importUrl,
+    searchSavedJobs
   } = useWorkspace();
   const [location, setLocation] = useState(QUICK_LOCATIONS[0]);
   const [tailoring, setTailoring] = useState(null);
   const [submitting, setSubmitting] = useState("");
 
-  async function handleSearch(event) {
+  // Saved-job search state (read-only query over imported jobs).
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Custom recency input.
+  const [customValue, setCustomValue] = useState("");
+  const [customUnit, setCustomUnit] = useState("hours");
+
+  const isCustomActive =
+    recencyHours != null && !RECENCY_PRESETS.some((preset) => preset.hours === recencyHours);
+
+  async function handleImportSearch(event) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     setSubmitting("search");
@@ -65,19 +77,52 @@ export function Jobs() {
     }
   }
 
+  async function handleSearchSaved(event) {
+    event.preventDefault();
+    if (!searchTerm.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSubmitting("saved-search");
+    try {
+      const results = await searchSavedJobs({ query: searchTerm.trim() });
+      setSearchResults(results);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSubmitting("");
+    }
+  }
+
+  function clearSearch() {
+    setSearchTerm("");
+    setSearchResults(null);
+  }
+
+  function applyCustomRecency() {
+    const value = Number(customValue);
+    if (!value || value < 1) {
+      toast.error("Enter a positive number for the custom window.");
+      return;
+    }
+    setRecencyHours(customUnit === "days" ? value * 24 : value);
+  }
+
+  const visibleJobs = searchResults ?? jobs;
+
   return (
     <>
-      <Topbar title="Jobs" subtitle="Search, import, score, and tailor" />
+      <Topbar title="Jobs" subtitle="Import, search, score, and tailor" />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Briefcase size={18} className="text-primary" /> LinkedIn search (Apify)
+              <Briefcase size={18} className="text-primary" /> Import LinkedIn search (Apify)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSearch} className="grid gap-3">
+            <form onSubmit={handleImportSearch} className="grid gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="query">Role</Label>
                 <Input id="query" name="query" placeholder="Cloud SWE intern" defaultValue="Cloud SWE intern" />
@@ -140,35 +185,83 @@ export function Jobs() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2">
-            <Search size={18} className="text-primary" /> Job matches
-          </CardTitle>
-          <div className="flex flex-wrap gap-1.5">
-            {RECENCY_PRESETS.map((preset) => (
-              <Button
-                key={preset.label}
-                type="button"
-                variant="secondary"
-                size="sm"
-                className={cn(
-                  (recencyDays ?? null) === preset.days && "bg-primary text-primary-foreground"
-                )}
-                onClick={() => setRecencyDays(preset.days)}
-              >
-                {preset.label}
-              </Button>
-            ))}
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Search size={18} className="text-primary" /> Job matches
+              {searchResults ? (
+                <span className="text-sm font-normal text-muted-foreground">
+                  · {searchResults.length} result{searchResults.length === 1 ? "" : "s"}
+                </span>
+              ) : null}
+            </CardTitle>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {RECENCY_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className={cn(
+                    (recencyHours ?? null) === preset.hours && "bg-primary text-primary-foreground"
+                  )}
+                  onClick={() => setRecencyHours(preset.hours)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Custom"
+                  value={customValue}
+                  onChange={(event) => setCustomValue(event.target.value)}
+                  className={cn("h-8 w-20", isCustomActive && "border-primary")}
+                />
+                <select
+                  value={customUnit}
+                  onChange={(event) => setCustomUnit(event.target.value)}
+                  className="h-8 rounded-[calc(var(--radius)-2px)] border border-input bg-card px-2 text-sm"
+                >
+                  <option value="hours">hrs</option>
+                  <option value="days">days</option>
+                </select>
+                <Button type="button" size="sm" variant="outline" onClick={applyCustomRecency}>
+                  Apply
+                </Button>
+              </div>
+            </div>
           </div>
+
+          <form onSubmit={handleSearchSaved} className="flex items-center gap-2">
+            <Input
+              placeholder="Search imported jobs (title, company, skills)…"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            <Button type="submit" variant="secondary" disabled={submitting === "saved-search"}>
+              <Search size={16} /> Search
+            </Button>
+            {searchResults ? (
+              <Button type="button" variant="ghost" size="icon" onClick={clearSearch} aria-label="Clear search">
+                <X size={16} />
+              </Button>
+            ) : null}
+          </form>
         </CardHeader>
+
         <CardContent className="grid gap-3">
-          {jobs.length ? (
-            jobs.map((job) => (
+          {visibleJobs.length ? (
+            visibleJobs.map((job) => (
               <JobCard key={job._id} job={job} onTailored={(j, draft) => setTailoring({ job: j, draft })} />
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              Add a resume and import or search your first role.
+              {searchResults
+                ? "No imported jobs match that search."
+                : "Add a resume and import your first role above."}
             </p>
           )}
         </CardContent>
