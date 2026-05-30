@@ -9,6 +9,7 @@ import { authRouter } from "./routes/auth.js";
 import { resumeRouter } from "./routes/resumes.js";
 import { jobRouter } from "./routes/jobs.js";
 import { applicationRouter } from "./routes/applications.js";
+import { documentRouter } from "./routes/documents.js";
 import { ingestionRouter } from "./routes/ingestionRuns.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { reminderRouter } from "./routes/reminders.js";
@@ -31,6 +32,7 @@ export function createApp() {
   app.use("/resumes", resumeRouter);
   app.use("/jobs", jobRouter);
   app.use("/applications", applicationRouter);
+  app.use("/documents", documentRouter);
   app.use("/ingestion-runs", ingestionRouter);
   app.use("/reminders", reminderRouter);
   app.use("/webhooks", webhookRouter);

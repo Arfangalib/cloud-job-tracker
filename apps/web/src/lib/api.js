@@ -90,11 +90,34 @@ export function makeApi({ getToken, setToken, onAuthFailure }) {
     return response.json();
   }
 
+  async function download(path) {
+    const doFetch = (authToken) =>
+      fetch(`${API_URL}${path}`, {
+        credentials: "include",
+        headers: authToken ? { authorization: `Bearer ${authToken}` } : {}
+      });
+
+    let token = getToken?.();
+    let response = await doFetch(token);
+    if (response.status === 401 && token) {
+      const refreshed = await refreshToken();
+      if (refreshed?.accessToken) {
+        response = await doFetch(refreshed.accessToken);
+      } else {
+        onAuthFailure?.();
+        throw new ApiError("Your session expired. Please sign in again.", 401);
+      }
+    }
+    if (!response.ok) throw new ApiError("Download failed.", response.status);
+    return response.blob();
+  }
+
   return {
     get: (path) => request(path),
     post: (path, body) => request(path, { method: "POST", body: JSON.stringify(body ?? {}) }),
     patch: (path, body) => request(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
     upload,
+    download,
     refreshToken,
     apiUrl: API_URL
   };

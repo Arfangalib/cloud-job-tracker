@@ -114,6 +114,30 @@ export function WorkspaceProvider({ children }) {
     [api, refresh]
   );
 
+  const generateDocument = useCallback(
+    async ({ jobId, kind, format }) => {
+      const result = await api.post("/documents/generate", { jobId, kind, format });
+      toast.success(`${kind === "coverLetter" ? "Cover letter" : "Resume"} (${format.toUpperCase()}) generated.`);
+      return result.document;
+    },
+    [api]
+  );
+
+  const downloadDocument = useCallback(
+    async (doc) => {
+      const blob = await api.download(`/documents/${doc._id}/download`);
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = doc.fileName || "document";
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    },
+    [api]
+  );
+
   const value = useMemo(
     () => ({
       jobs,
@@ -129,7 +153,9 @@ export function WorkspaceProvider({ children }) {
       tailorJob,
       updateStatus,
       saveResume,
-      uploadResume
+      uploadResume,
+      generateDocument,
+      downloadDocument
     }),
     [
       jobs,
@@ -144,7 +170,9 @@ export function WorkspaceProvider({ children }) {
       tailorJob,
       updateStatus,
       saveResume,
-      uploadResume
+      uploadResume,
+      generateDocument,
+      downloadDocument
     ]
   );
 

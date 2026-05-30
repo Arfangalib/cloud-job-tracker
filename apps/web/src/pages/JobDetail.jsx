@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button.jsx";
 import { Badge } from "../components/ui/badge.jsx";
 import { ScoreBadge } from "../components/ScoreBadge.jsx";
 import { TailoringDraft } from "../components/TailoringDraft.jsx";
+import { DocumentGenerator } from "../components/DocumentGenerator.jsx";
 import { useWorkspace } from "../lib/workspace-context.jsx";
 import { isHttpUrl } from "../lib/utils.js";
 import { toast } from "../components/ui/toast.jsx";
@@ -128,6 +129,8 @@ export function JobDetail() {
           ) : null}
         </CardContent>
       </Card>
+
+      <DocumentGenerator job={job} />
 
       {draft ? <TailoringDraft job={job} draft={draft} /> : null}
     </div>
