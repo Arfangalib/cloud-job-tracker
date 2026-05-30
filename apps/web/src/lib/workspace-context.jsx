@@ -102,6 +102,18 @@ export function WorkspaceProvider({ children }) {
     [api, refresh]
   );
 
+  const uploadResume = useCallback(
+    async ({ file, title }) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (title) form.append("title", title);
+      await api.upload("/resumes/upload", form);
+      toast.success("Resume uploaded and parsed.");
+      await refresh();
+    },
+    [api, refresh]
+  );
+
   const value = useMemo(
     () => ({
       jobs,
@@ -116,7 +128,8 @@ export function WorkspaceProvider({ children }) {
       scoreJob,
       tailorJob,
       updateStatus,
-      saveResume
+      saveResume,
+      uploadResume
     }),
     [
       jobs,
@@ -130,7 +143,8 @@ export function WorkspaceProvider({ children }) {
       scoreJob,
       tailorJob,
       updateStatus,
-      saveResume
+      saveResume,
+      uploadResume
     ]
   );
 

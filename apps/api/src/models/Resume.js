@@ -12,7 +12,14 @@ const resumeSchema = new mongoose.Schema(
       projects: [String],
       education: [String]
     },
-    isPrimary: { type: Boolean, default: false }
+    isPrimary: { type: Boolean, default: false },
+    sourceFile: {
+      storageKey: String,
+      storageDriver: String,
+      mimetype: String,
+      originalName: String,
+      size: Number
+    }
   },
   { timestamps: true }
 );
