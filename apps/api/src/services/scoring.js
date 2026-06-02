@@ -13,6 +13,19 @@ export async function scoreJobAgainstResume(job, resume) {
   return scoreJobWithKeywords(job, resume);
 }
 
+/**
+ * Score a job once and persist it. Re-uses the existing match when the job has
+ * already been scored (tracked by scoredAt) so a genuine 0% score is not
+ * re-scored on every tailor/generate call. Returns the (possibly saved) job.
+ */
+export async function ensureJobScored(job, resume) {
+  if (job.scoredAt) return job;
+  job.match = await scoreJobAgainstResume(job, resume);
+  job.scoredAt = new Date();
+  await job.save();
+  return job;
+}
+
 export function scoreJobWithKeywords(job, resume) {
   const jobKeywords = job.keywords?.length
     ? job.keywords

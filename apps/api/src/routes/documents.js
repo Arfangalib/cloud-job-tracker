@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { JobPost } from "../models/JobPost.js";
 import { Resume } from "../models/Resume.js";
 import { GeneratedDocument } from "../models/GeneratedDocument.js";
-import { scoreJobAgainstResume } from "../services/scoring.js";
+import { ensureJobScored } from "../services/scoring.js";
 import { buildTailoredDraft } from "../services/tailor.js";
 import {
   DOCUMENT_FORMATS,
@@ -34,11 +34,8 @@ documentRouter.post("/generate", async (req, res, next) => {
     const resume = await Resume.findOne({ userId: req.user._id, isPrimary: true }).sort({ createdAt: -1 });
     if (!resume) return res.status(400).json({ error: "Upload a resume before generating documents" });
 
-    // Reuse the existing score + tailor pipeline (no new AI cost beyond tailoring).
-    if (!job.match?.score) {
-      job.match = await scoreJobAgainstResume(job, resume);
-      await job.save();
-    }
+    // Reuse the existing score + tailor pipeline (scores once, cached via scoredAt).
+    await ensureJobScored(job, resume);
     const draft = await buildTailoredDraft({ job, resume });
 
     const buffer = await renderDocument({
@@ -93,7 +90,14 @@ documentRouter.get("/:id/download", async (req, res, next) => {
 
     res.setHeader("Content-Type", document.mimetype);
     res.setHeader("Content-Disposition", `attachment; filename="${document.fileName || "document"}"`);
-    stream.on("error", next);
+
+    // Once headers are flushed we can't change the status, so tear the socket
+    // down on a mid-transfer read error instead of calling next().
+    stream.on("error", (error) => {
+      if (res.headersSent) res.destroy(error);
+      else next(error);
+    });
+    res.on("close", () => stream.destroy());
     stream.pipe(res);
   } catch (error) {
     next(error);

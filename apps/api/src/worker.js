@@ -35,6 +35,7 @@ async function processItem(item) {
     ]);
     if (job && resume) {
       job.match = await scoreJobAgainstResume(job, resume);
+      job.scoredAt = new Date();
       await job.save();
     }
   }

@@ -21,6 +21,9 @@ const jobPostSchema = new mongoose.Schema(
       missingKeywords: [String],
       summary: String
     },
+    // Set when fit scoring actually runs, so a genuine 0% score isn't mistaken
+    // for "never scored" (match.score defaults to 0).
+    scoredAt: Date,
     status: {
       type: String,
       enum: ["saved", "tailoring", "applied", "interview", "rejected", "offer"],

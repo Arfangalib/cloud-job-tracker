@@ -8,7 +8,7 @@ import { Application } from "../models/Application.js";
 import { startApifyJobImport, startLinkedInJobSearchImport } from "../services/apify.js";
 import { detectSource, needsApify } from "../services/jobNormalizer.js";
 import { enqueue } from "../services/queue.js";
-import { scoreJobAgainstResume } from "../services/scoring.js";
+import { ensureJobScored, scoreJobAgainstResume } from "../services/scoring.js";
 import { buildTailoredDraft } from "../services/tailor.js";
 
 export const jobRouter = express.Router();
@@ -179,7 +179,9 @@ jobRouter.post("/:id/score", async (req, res) => {
   if (!job) return res.status(404).json({ error: "Job not found" });
   const resume = await Resume.findOne({ userId: req.user._id, isPrimary: true }).sort({ createdAt: -1 });
   if (!resume) return res.status(400).json({ error: "Upload a resume before scoring jobs" });
+  // Explicit user-initiated scoring always recomputes.
   job.match = await scoreJobAgainstResume(job, resume);
+  job.scoredAt = new Date();
   await job.save();
   res.json({ job });
 });
@@ -189,19 +191,21 @@ jobRouter.post("/:id/tailor", async (req, res) => {
   if (!job) return res.status(404).json({ error: "Job not found" });
   const resume = await Resume.findOne({ userId: req.user._id, isPrimary: true }).sort({ createdAt: -1 });
   if (!resume) return res.status(400).json({ error: "Upload a resume before tailoring" });
-  if (!job.match?.score) {
-    job.match = await scoreJobAgainstResume(job, resume);
-    await job.save();
-  }
+  await ensureJobScored(job, resume);
   res.json({ draft: await buildTailoredDraft({ job, resume }) });
 });
 
 export async function upsertJobs(userId, jobs) {
   const created = [];
   for (const job of jobs) {
+    // Keep the real posting date current even for already-imported jobs, while
+    // $setOnInsert preserves everything else (e.g. score, status) on re-import.
+    const { postedAt, ...rest } = job;
+    const update = { $setOnInsert: { ...rest, userId } };
+    if (postedAt) update.$set = { postedAt };
     const saved = await JobPost.findOneAndUpdate(
       { userId, sourceUrl: job.sourceUrl },
-      { $setOnInsert: { ...job, userId } },
+      update,
       { upsert: true, new: true }
     );
     await Application.findOneAndUpdate(

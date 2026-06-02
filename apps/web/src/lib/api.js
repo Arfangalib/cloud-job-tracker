@@ -11,104 +11,97 @@ export class ApiError extends Error {
 /**
  * Build an authenticated fetch client.
  *
- * Fixes the original 401 handling, which refreshed the token but never retried
- * the failed request. Now a 401 triggers one refresh + retry; if the refresh
- * fails we surface an auth error so the caller can redirect to login.
+ * A 401 triggers a single shared refresh + retry. Concurrent requests that all
+ * see a 401 share ONE in-flight refresh (single-flight), so we never send the
+ * same refresh cookie twice — important because the server revokes the whole
+ * session family on refresh-token reuse.
  */
 export function makeApi({ getToken, setToken, onAuthFailure }) {
-  async function rawFetch(path, options, token) {
-    return fetch(`${API_URL}${path}`, {
-      ...options,
-      credentials: "include",
-      headers: {
-        "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      }
-    });
+  let refreshInFlight = null;
+
+  function refreshToken() {
+    // Coalesce concurrent refreshes into one network call.
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        const response = await fetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" }
+        });
+        if (!response.ok) return null;
+        const data = await response.json().catch(() => null);
+        if (data?.accessToken) setToken?.(data.accessToken);
+        return data;
+      })().finally(() => {
+        refreshInFlight = null;
+      });
+    }
+    return refreshInFlight;
   }
 
-  async function refreshToken() {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" }
-    });
-    if (!response.ok) return null;
-    const data = await response.json().catch(() => null);
-    if (data?.accessToken) setToken?.(data.accessToken);
-    return data;
-  }
-
-  async function request(path, options = {}) {
-    let token = getToken?.();
-    let response = await rawFetch(path, options, token);
-
+  // Run a request, and on 401 refresh once (shared) and retry. `send(token)`
+  // must build and return a fetch Response for the given access token.
+  async function withAuthRetry(send) {
+    const token = getToken?.();
+    let response = await send(token);
     if (response.status === 401 && token) {
       const refreshed = await refreshToken();
       if (refreshed?.accessToken) {
-        // Retry the original request with the rotated token.
-        response = await rawFetch(path, options, refreshed.accessToken);
+        response = await send(refreshed.accessToken);
       } else {
         onAuthFailure?.();
         throw new ApiError("Your session expired. Please sign in again.", 401);
       }
     }
+    return response;
+  }
 
+  async function ensureOk(response) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText }));
       throw new ApiError(getApiErrorMessage(errorData), response.status);
     }
+    return response;
+  }
+
+  async function request(path, options = {}) {
+    const response = await withAuthRetry((token) =>
+      fetch(`${API_URL}${path}`, {
+        ...options,
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {})
+        }
+      })
+    );
+    await ensureOk(response);
     if (response.status === 204) return {};
     return response.json();
   }
 
   async function upload(path, formData) {
-    let token = getToken?.();
-    const doUpload = (authToken) =>
+    const response = await withAuthRetry((token) =>
       fetch(`${API_URL}${path}`, {
         method: "POST",
         credentials: "include",
-        headers: authToken ? { authorization: `Bearer ${authToken}` } : {},
+        headers: token ? { authorization: `Bearer ${token}` } : {},
         body: formData
-      });
-
-    let response = await doUpload(token);
-    if (response.status === 401 && token) {
-      const refreshed = await refreshToken();
-      if (refreshed?.accessToken) {
-        response = await doUpload(refreshed.accessToken);
-      } else {
-        onAuthFailure?.();
-        throw new ApiError("Your session expired. Please sign in again.", 401);
-      }
-    }
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new ApiError(getApiErrorMessage(errorData), response.status);
-    }
+      })
+    );
+    await ensureOk(response);
     return response.json();
   }
 
   async function download(path) {
-    const doFetch = (authToken) =>
+    const response = await withAuthRetry((token) =>
       fetch(`${API_URL}${path}`, {
         credentials: "include",
-        headers: authToken ? { authorization: `Bearer ${authToken}` } : {}
-      });
-
-    let token = getToken?.();
-    let response = await doFetch(token);
-    if (response.status === 401 && token) {
-      const refreshed = await refreshToken();
-      if (refreshed?.accessToken) {
-        response = await doFetch(refreshed.accessToken);
-      } else {
-        onAuthFailure?.();
-        throw new ApiError("Your session expired. Please sign in again.", 401);
-      }
-    }
-    if (!response.ok) throw new ApiError("Download failed.", response.status);
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      })
+    );
+    await ensureOk(response);
     return response.blob();
   }
 

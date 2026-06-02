@@ -25,6 +25,9 @@ const RECENCY_PRESETS = [
   { label: "30d", hours: 720 }
 ];
 
+// Mirrors the server's recentHours cap (z.coerce.number().max(8760)).
+const MAX_RECENCY_HOURS = 8760;
+
 export function Jobs() {
   const {
     jobs,
@@ -85,7 +88,10 @@ export function Jobs() {
     }
     setSubmitting("saved-search");
     try {
-      const results = await searchSavedJobs({ query: searchTerm.trim() });
+      const results = await searchSavedJobs({
+        query: searchTerm.trim(),
+        ...(recencyHours ? { recentHours: recencyHours } : {})
+      });
       setSearchResults(results);
     } catch (error) {
       toast.error(error.message);
@@ -105,7 +111,12 @@ export function Jobs() {
       toast.error("Enter a positive number for the custom window.");
       return;
     }
-    setRecencyHours(customUnit === "days" ? value * 24 : value);
+    const requested = customUnit === "days" ? value * 24 : value;
+    const hours = Math.min(requested, MAX_RECENCY_HOURS);
+    if (hours !== requested) {
+      toast.message("Capped to the maximum window (8760h / 365d).");
+    }
+    setRecencyHours(hours);
   }
 
   const visibleJobs = searchResults ?? jobs;

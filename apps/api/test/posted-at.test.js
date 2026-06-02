@@ -25,6 +25,15 @@ describe("parsePostedAt", () => {
     expect(parsePostedAt({})).toBeUndefined();
   });
 
+  it("parses a bare year string as a calendar year, not a 1970 epoch", () => {
+    const date = parsePostedAt({ postedDate: "2024" });
+    expect(date.getUTCFullYear()).toBe(2024);
+  });
+
+  it("ignores a small bare number that cannot be a real epoch", () => {
+    expect(parsePostedAt({ postedAt: 2024 })).toBeUndefined();
+  });
+
   it("normalizeJob attaches postedAt from the raw payload", () => {
     const job = normalizeJob({
       job_title: "Cloud SWE Intern",

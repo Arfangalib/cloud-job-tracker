@@ -19,10 +19,14 @@ services:
       CLIENT_ORIGIN: http://localhost:5173
       JWT_ACCESS_SECRET: dev_access_secret_change_me
       REFRESH_TOKEN_PEPPER: dev_refresh_pepper_change_me
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /data/uploads
     depends_on:
       - mongo
     ports:
       - "4000:4000"
+    volumes:
+      - uploads-data:/data/uploads
 
   worker:
     build:
@@ -54,3 +58,4 @@ services:
 
 volumes:
   mongo-data:
+  uploads-data:

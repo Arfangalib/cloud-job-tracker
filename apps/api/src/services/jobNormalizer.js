@@ -66,14 +66,21 @@ export function parsePostedAt(raw = {}) {
 
 function toDate(value) {
   if (value == null || value === "") return undefined;
-  // Numeric epoch (seconds or milliseconds).
-  if (typeof value === "number" || /^\d+$/.test(String(value))) {
+  const isDigitString = typeof value === "string" && /^\d+$/.test(value);
+
+  if (typeof value === "number" || isDigitString) {
     const num = Number(value);
-    const ms = num < 1e12 ? num * 1000 : num; // treat 10-digit values as seconds
-    const date = new Date(ms);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    // Only large values are plausible epochs: ms (>=1e12) or seconds (>=1e9).
+    if (num >= 1e12) return validDate(new Date(num));
+    if (num >= 1e9) return validDate(new Date(num * 1000));
+    // Too small for an epoch. A bare year string ("2024") parses as a year;
+    // a small bare number is not a real date.
+    return isDigitString ? validDate(new Date(value)) : undefined;
   }
-  const date = new Date(value);
+  return validDate(new Date(value));
+}
+
+function validDate(date) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
