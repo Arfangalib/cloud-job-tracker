@@ -33,8 +33,55 @@ export function normalizeJob(raw, fallback = {}) {
     employmentType: raw.employmentType || raw.type || "Internship / Co-op",
     remoteType: /remote/i.test(`${location} ${description}`) ? "remote" : "unspecified",
     deadline: raw.deadline ? new Date(raw.deadline) : undefined,
+    postedAt: parsePostedAt(raw),
     keywords: extractKeywords(`${title} ${description}`)
   };
+}
+
+// Pull a real posting date from the many shapes scrapers/ATS APIs return.
+// Falls back to undefined so the document's createdAt is used at query time.
+export function parsePostedAt(raw = {}) {
+  const candidates = [
+    raw.postedAt,
+    raw.posted_at,
+    raw.postedDate,
+    raw.posted_date,
+    raw.datePosted,
+    raw.date_posted,
+    raw.listedAt,
+    raw.listed_at,
+    raw.publishedAt,
+    raw.published_at,
+    raw.updated_at, // Greenhouse
+    raw.updatedAt,
+    raw.createdAt, // Lever (ms epoch)
+    raw.created_at
+  ];
+  for (const value of candidates) {
+    const parsed = toDate(value);
+    if (parsed) return parsed;
+  }
+  return undefined;
+}
+
+function toDate(value) {
+  if (value == null || value === "") return undefined;
+  const isDigitString = typeof value === "string" && /^\d+$/.test(value);
+
+  if (typeof value === "number" || isDigitString) {
+    const num = Number(value);
+    // Only large values are plausible epochs: ms (>=1e12) or seconds (>=1e9).
+    if (num >= 1e12) return validDate(new Date(num));
+    if (num >= 1e9) return validDate(new Date(num * 1000));
+    // Too small for an epoch. A bare year string ("2024") parses as a year;
+    // a small bare number is not a real date.
+    return isDigitString ? validDate(new Date(value)) : undefined;
+  }
+  return validDate(new Date(value));
+}
+
+function validDate(date) {
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function safeHost(url) {

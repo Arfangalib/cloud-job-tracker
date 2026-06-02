@@ -13,6 +13,7 @@ const jobPostSchema = new mongoose.Schema(
     employmentType: String,
     remoteType: String,
     deadline: Date,
+    postedAt: Date,
     keywords: [String],
     match: {
       score: { type: Number, default: 0 },
@@ -20,6 +21,9 @@ const jobPostSchema = new mongoose.Schema(
       missingKeywords: [String],
       summary: String
     },
+    // Set when fit scoring actually runs, so a genuine 0% score isn't mistaken
+    // for "never scored" (match.score defaults to 0).
+    scoredAt: Date,
     status: {
       type: String,
       enum: ["saved", "tailoring", "applied", "interview", "rejected", "offer"],
@@ -30,5 +34,8 @@ const jobPostSchema = new mongoose.Schema(
 );
 
 jobPostSchema.index({ userId: 1, sourceUrl: 1 }, { unique: true });
+jobPostSchema.index({ userId: 1, postedAt: -1 });
+// Backs free-text job search (title/company/description/keywords).
+jobPostSchema.index({ title: "text", company: "text", description: "text", keywords: "text" });
 
 export const JobPost = mongoose.model("JobPost", jobPostSchema);

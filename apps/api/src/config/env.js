@@ -18,7 +18,11 @@ export const env = {
   aiProvider: process.env.AI_PROVIDER || "mock",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   openaiScoringModel: process.env.OPENAI_SCORING_MODEL || "gpt-5.4-mini",
-  openaiTailorModel: process.env.OPENAI_TAILOR_MODEL || "gpt-5.4"
+  openaiTailorModel: process.env.OPENAI_TAILOR_MODEL || "gpt-5.4",
+  storageDriver: process.env.STORAGE_DRIVER || "local",
+  uploadDir: process.env.UPLOAD_DIR || "uploads",
+  s3Bucket: process.env.S3_BUCKET || "",
+  awsRegion: process.env.AWS_REGION || "us-east-1"
 };
 
 export const isProduction = env.nodeEnv === "production";
