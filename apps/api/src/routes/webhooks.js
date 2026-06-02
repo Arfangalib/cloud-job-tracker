@@ -1,9 +1,7 @@
 import express from "express";
 import { env } from "../config/env.js";
 import { IngestionRun } from "../models/IngestionRun.js";
-import { fetchApifyDatasetItems } from "../services/apify.js";
-import { normalizeJob } from "../services/jobNormalizer.js";
-import { enqueue } from "../services/queue.js";
+import { completeApifyIngestionRun } from "../services/ingestion.js";
 
 export const webhookRouter = express.Router();
 
@@ -19,23 +17,11 @@ webhookRouter.post("/apify/job-parsed", async (req, res, next) => {
     const apifyData = req.body.resource || req.body;
     const datasetId = req.body.datasetId || apifyData.defaultDatasetId || run.datasetId;
     const inlineItems = Array.isArray(req.body.items) ? req.body.items : [];
-    const fetchedItems = inlineItems.length ? inlineItems : await fetchApifyDatasetItems(datasetId);
-    const jobs = fetchedItems.map((item) =>
-      normalizeJob(item, { source: run.source, sourceUrl: run.sourceUrl, location: "Canada / Remote" })
-    );
 
-    run.status = "completed";
-    run.datasetId = datasetId;
-    run.itemsImported = jobs.length;
-    await run.save();
+    // Shared with the worker poller; the atomic claim keeps webhook + poll idempotent.
+    const result = await completeApifyIngestionRun({ run, datasetId, inlineItems });
 
-    await enqueue("apify-results", {
-      ingestionRunId: run._id.toString(),
-      userId: run.userId.toString(),
-      jobs
-    });
-
-    res.json({ ok: true, queued: jobs.length });
+    res.json({ ok: true, queued: result.queued, alreadyCompleted: result.alreadyCompleted });
   } catch (error) {
     next(error);
   }

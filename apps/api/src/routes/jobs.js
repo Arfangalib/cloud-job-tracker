@@ -1,5 +1,6 @@
 import express from "express";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { requireAuth } from "../middleware/auth.js";
 import { IngestionRun } from "../models/IngestionRun.js";
 import { JobPost } from "../models/JobPost.js";
@@ -127,6 +128,7 @@ jobRouter.post("/import-linkedin-search", async (req, res, next) => {
         error: apifyRun.configured ? undefined : apifyRun.message
       });
       await run.save();
+      await scheduleApifyPoll(run);
     } catch (error) {
       run.status = "failed";
       run.error = getErrorMessage(error);
@@ -158,6 +160,7 @@ jobRouter.post("/import-url", async (req, res, next) => {
           error: apifyRun.configured ? undefined : apifyRun.message
         });
         await run.save();
+        await scheduleApifyPoll(run);
       } catch (error) {
         run.status = "failed";
         run.error = getErrorMessage(error);
@@ -216,6 +219,17 @@ export async function upsertJobs(userId, jobs) {
     created.push(saved);
   }
   return created;
+}
+
+// Durable fallback for the inbound Apify webhook: only schedule polling once the
+// run is actually executing on Apify (configured + has a run id to poll).
+function scheduleApifyPoll(run) {
+  if (run.status !== "running" || !run.apifyRunId) return undefined;
+  return enqueue(
+    "apify-poll",
+    { ingestionRunId: run._id.toString(), attempt: 0, maxAttempts: env.apifyPollMaxAttempts },
+    { runAfter: new Date(Date.now() + env.apifyPollIntervalMs), maxAttempts: env.apifyPollMaxAttempts }
+  );
 }
 
 function logApifyImportError(importType, run, error) {

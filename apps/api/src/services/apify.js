@@ -75,6 +75,17 @@ export async function startLinkedInJobSearchImport({ title, location, rows = 25,
   };
 }
 
+export async function fetchApifyRun(runId) {
+  if (!env.apifyToken || !runId) return null;
+  const response = await fetch(
+    `https://api.apify.com/v2/actor-runs/${encodeURIComponent(runId)}?token=${encodeURIComponent(env.apifyToken)}`
+  );
+  if (!response.ok) throw new Error(await getApifyErrorMessage(response, "Failed to fetch Apify run"));
+  const body = await response.json();
+  const run = body.data || body;
+  return { status: run.status, defaultDatasetId: run.defaultDatasetId };
+}
+
 export async function fetchApifyDatasetItems(datasetId) {
   if (!env.apifyToken || !datasetId) return [];
   const response = await fetch(

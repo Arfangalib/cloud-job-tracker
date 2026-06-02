@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,11 @@ import { createApp } from "../src/server.js";
 import { env } from "../src/config/env.js";
 import { IngestionRun } from "../src/models/IngestionRun.js";
 import { WorkItem } from "../src/models/WorkItem.js";
+import {
+  classifyApifyStatus,
+  completeApifyIngestionRun,
+  pollApifyIngestionRun
+} from "../src/services/ingestion.js";
 
 let mongo;
 let app;
@@ -216,7 +222,145 @@ describe("Apify LinkedIn imports", () => {
       externalId: "123"
     });
   });
+
+  it("schedules an Apify poll after a configured run starts", async () => {
+    configureApifyEnv();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: { id: "run-poll-1", actId: "worldunboxer~rapid-linkedin-scraper", defaultDatasetId: "dataset-poll-1" }
+      })
+    });
+    const token = await registerAndToken();
+
+    const importResponse = await request(app)
+      .post("/jobs/import-linkedin-search")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "Cloud SWE intern", location: "Canada / Remote", rows: 5 });
+    const runId = importResponse.body.ingestionRun._id;
+
+    const poll = await WorkItem.findOne({ type: "apify-poll", "payload.ingestionRunId": runId });
+    expect(poll).not.toBeNull();
+    expect(poll.payload.attempt).toBe(0);
+    expect(poll.runAfter.getTime()).toBeGreaterThan(Date.now());
+  });
 });
+
+describe("Apify polling fallback", () => {
+  it("classifies Apify run statuses", () => {
+    expect(classifyApifyStatus("SUCCEEDED")).toBe("succeeded");
+    expect(classifyApifyStatus("FAILED")).toBe("failed");
+    expect(classifyApifyStatus("ABORTED")).toBe("failed");
+    expect(classifyApifyStatus("TIMED-OUT")).toBe("failed");
+    expect(classifyApifyStatus("RUNNING")).toBe("pending");
+    expect(classifyApifyStatus("READY")).toBe("pending");
+    expect(classifyApifyStatus(undefined)).toBe("pending");
+  });
+
+  it("completes an ingestion run idempotently (webhook + poll safe)", async () => {
+    const run = await makeApifyRun();
+    const items = [{ job_title: "SRE Intern", company_name: "Acme", job_url: "https://linkedin.com/jobs/view/9", job_id: "9" }];
+
+    const first = await completeApifyIngestionRun({ run, datasetId: "ds-x", inlineItems: items });
+    const second = await completeApifyIngestionRun({ run, datasetId: "ds-x", inlineItems: items });
+
+    expect(first).toMatchObject({ alreadyCompleted: false, queued: 1 });
+    expect(second).toMatchObject({ alreadyCompleted: true, queued: 0 });
+
+    const reloaded = await IngestionRun.findById(run._id);
+    expect(reloaded.status).toBe("completed");
+    expect(reloaded.itemsImported).toBe(1);
+
+    const queued = await WorkItem.countDocuments({ type: "apify-results", "payload.ingestionRunId": run._id.toString() });
+    expect(queued).toBe(1);
+  });
+
+  it("imports the dataset when the polled run has succeeded", async () => {
+    configureApifyEnv();
+    const run = await makeApifyRun();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (String(url).includes("/actor-runs/")) {
+        return { ok: true, json: async () => ({ data: { status: "SUCCEEDED", defaultDatasetId: "ds-succeeded" } }) };
+      }
+      return {
+        ok: true,
+        json: async () => [
+          { job_title: "Cloud Intern", company_name: "Northwind", job_url: "https://linkedin.com/jobs/view/77", job_id: "77" }
+        ]
+      };
+    });
+
+    const result = await pollApifyIngestionRun({ ingestionRunId: run._id.toString(), attempt: 0, maxAttempts: 40 });
+
+    expect(result).toMatchObject({ done: true, reason: "succeeded" });
+    const reloaded = await IngestionRun.findById(run._id);
+    expect(reloaded.status).toBe("completed");
+    const queued = await WorkItem.findOne({ type: "apify-results", "payload.ingestionRunId": run._id.toString() });
+    expect(queued.payload.jobs[0]).toMatchObject({ title: "Cloud Intern", externalId: "77" });
+  });
+
+  it("re-enqueues a poll while the run is still going", async () => {
+    configureApifyEnv();
+    const run = await makeApifyRun();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { status: "RUNNING" } })
+    });
+
+    const result = await pollApifyIngestionRun({ ingestionRunId: run._id.toString(), attempt: 0, maxAttempts: 40 });
+
+    expect(result).toMatchObject({ done: false, reason: "pending" });
+    const reloaded = await IngestionRun.findById(run._id);
+    expect(reloaded.status).toBe("running");
+    const next = await WorkItem.findOne({ type: "apify-poll", "payload.ingestionRunId": run._id.toString() });
+    expect(next.payload.attempt).toBe(1);
+  });
+
+  it("fails the run when the poll budget is exhausted", async () => {
+    configureApifyEnv();
+    const run = await makeApifyRun();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { status: "RUNNING" } })
+    });
+
+    const result = await pollApifyIngestionRun({ ingestionRunId: run._id.toString(), attempt: 0, maxAttempts: 1 });
+
+    expect(result).toMatchObject({ done: true, reason: "timed-out" });
+    const reloaded = await IngestionRun.findById(run._id);
+    expect(reloaded.status).toBe("failed");
+    expect(reloaded.error).toContain("poll window");
+  });
+
+  it("marks the run failed when Apify reports a terminal failure", async () => {
+    configureApifyEnv();
+    const run = await makeApifyRun();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { status: "ABORTED" } })
+    });
+
+    const result = await pollApifyIngestionRun({ ingestionRunId: run._id.toString(), attempt: 0, maxAttempts: 40 });
+
+    expect(result).toMatchObject({ done: true, reason: "failed" });
+    const reloaded = await IngestionRun.findById(run._id);
+    expect(reloaded.status).toBe("failed");
+    expect(reloaded.error).toContain("ABORTED");
+  });
+});
+
+async function makeApifyRun(overrides = {}) {
+  return IngestionRun.create({
+    userId: new mongoose.Types.ObjectId(),
+    source: "linkedin",
+    sourceUrl: "https://www.linkedin.com/jobs/search/?keywords=cloud",
+    mode: "apify",
+    status: "running",
+    apifyRunId: "run-under-test",
+    datasetId: "dataset-under-test",
+    ...overrides
+  });
+}
 
 async function registerAndToken() {
   userCount += 1;
