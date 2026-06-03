@@ -163,15 +163,37 @@ direct Lever/Greenhouse imports still work fully.
 **Free-tier live demo:** **Render** (web Static Site + API Web Service) + **MongoDB
 Atlas M0**. Captured as infrastructure-as-code in [`render.yaml`](./render.yaml).
 
-> For the free demo, the **worker runs inline with the API** in a single service
-> (`RUN_WORKER_INLINE=true`) to stay within free limits. **In production, the API and
-> worker run as separate services** — exactly the split modeled in `infra/terraform`
-> (ECS Fargate + SQS). The demo seeds sample data and may be reset periodically;
-> interviewers can also register their own account.
+### Demo setup (one-time)
 
-**Production (AWS):** `infra/terraform` provisions ECS Fargate (API + worker), SQS, an
-S3 documents bucket, Secrets Manager, and CloudWatch. The local Mongo work queue maps
-to SQS; local disk storage maps to S3.
+1. **MongoDB Atlas** — create a free **M0** cluster, add a database user, allow access
+   from anywhere (`0.0.0.0/0`), and copy the connection string.
+2. **Render** — New → **Blueprint** → select this repo (Render reads `render.yaml` and
+   creates the API web service + web static site).
+3. **Set environment variables** in the Render dashboard, then redeploy:
+   - **API service:** `MONGODB_URI` = the Atlas string; `CLIENT_ORIGIN` = the web
+     static-site URL.
+   - **Web service:** `VITE_API_URL` = the API service URL. ⚠️ **`VITE_API_URL` is a
+     build-time variable** — after setting it you must **trigger a redeploy/rebuild of
+     the web service** for it to take effect.
+4. **Seed demo data** — from the API service **Shell**: `npm run seed --workspace apps/api`.
+   This prints the demo credentials.
+5. Open the web URL and try it (register your own account, or use the seeded demo).
+
+### Demo caveats (honest limitations)
+
+- **Ephemeral storage:** the demo uses `STORAGE_DRIVER=local`, so uploaded resumes and
+  generated documents live on the service's local disk and **may disappear on redeploy
+  or restart**. Production uses **S3** (`STORAGE_DRIVER=s3`).
+- **Free services sleep:** Render free services spin down when idle (~30s cold start on
+  the next request). While the API is asleep the inline worker isn't polling, so an
+  **Apify run's results may be delayed** until the API wakes. Direct Lever/Greenhouse
+  imports complete as soon as the service is awake.
+- **Seeded demo account is mutable:** it's a normal account — **data may be reset**.
+  Interviewers can also register their own account for a clean slate.
+
+**Production (AWS):** `infra/terraform` provisions ECS Fargate (API + worker as
+**separate services**), SQS, an S3 documents bucket, Secrets Manager, and CloudWatch.
+The local Mongo work queue maps to SQS; local disk storage maps to S3.
 
 ## Key technical decisions
 
