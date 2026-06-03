@@ -5,6 +5,7 @@ dotenv.config();
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 4000),
+  runWorkerInline: process.env.RUN_WORKER_INLINE === "true",
   mongoUri: process.env.MONGODB_URI || "mongodb://localhost:27017/cloud-job-tracker",
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev_access_secret_change_me",
