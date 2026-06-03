@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { Session } from "../models/Session.js";
 import { User } from "../models/User.js";
 import {
+  clearRefreshCookieOptions,
   issueSession,
   refreshCookieOptions,
   revokeSession,
@@ -70,7 +71,7 @@ authRouter.post("/refresh", authLimiter, async (req, res, next) => {
 authRouter.post("/logout", authLimiter, async (req, res, next) => {
   try {
     await revokeSession(req.cookies.refresh_token, "logout");
-    res.clearCookie("refresh_token", { path: "/auth" });
+    res.clearCookie("refresh_token", clearRefreshCookieOptions());
     res.status(204).end();
   } catch (error) {
     next(error);

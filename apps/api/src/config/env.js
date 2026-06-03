@@ -2,8 +2,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const nodeEnv = process.env.NODE_ENV || "development";
+const production = nodeEnv === "production";
+const refreshCookieSameSite = parseSameSite(process.env.REFRESH_COOKIE_SAME_SITE);
+const requestedRefreshCookieSecure = parseBoolean(process.env.REFRESH_COOKIE_SECURE, production);
+
 export const env = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
   port: Number(process.env.PORT || 4000),
   runWorkerInline: process.env.RUN_WORKER_INLINE === "true",
   mongoUri: process.env.MONGODB_URI || "mongodb://localhost:27017/cloud-job-tracker",
@@ -12,6 +17,8 @@ export const env = {
   refreshTokenPepper: process.env.REFRESH_TOKEN_PEPPER || "dev_refresh_pepper_change_me",
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenDays: Number(process.env.REFRESH_TOKEN_DAYS || 30),
+  refreshCookieSameSite,
+  refreshCookieSecure: refreshCookieSameSite === "none" ? true : requestedRefreshCookieSecure,
   apifyToken: process.env.APIFY_TOKEN || "",
   apifyJobActorId: process.env.APIFY_JOB_ACTOR_ID || "",
   apifyWebhookSecret: process.env.APIFY_WEBHOOK_SECRET || "dev_apify_webhook_secret",
@@ -29,3 +36,17 @@ export const env = {
 };
 
 export const isProduction = env.nodeEnv === "production";
+
+function parseSameSite(value) {
+  const normalized = (value || "strict").trim().toLowerCase();
+  if (["strict", "lax", "none"].includes(normalized)) return normalized;
+  throw new Error("REFRESH_COOKIE_SAME_SITE must be strict, lax, or none");
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === "") return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes"].includes(normalized)) return true;
+  if (["false", "0", "no"].includes(normalized)) return false;
+  throw new Error("REFRESH_COOKIE_SECURE must be true or false");
+}

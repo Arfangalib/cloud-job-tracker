@@ -1,8 +1,10 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
-import { env, isProduction } from "../config/env.js";
+import { env } from "../config/env.js";
 import { Session } from "../models/Session.js";
+
+const REFRESH_COOKIE_PATH = "/auth";
 
 export function signAccessToken(user) {
   return jwt.sign({ email: user.email }, env.jwtAccessSecret, {
@@ -20,13 +22,23 @@ export function hashRefreshToken(token) {
   return crypto.createHmac("sha256", env.refreshTokenPepper).update(token).digest("hex");
 }
 
-export function refreshCookieOptions() {
+export function refreshCookieOptions(config = env) {
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: "strict",
-    path: "/auth",
-    maxAge: env.refreshTokenDays * 24 * 60 * 60 * 1000
+    ...refreshCookieBaseOptions(config),
+    maxAge: config.refreshTokenDays * 24 * 60 * 60 * 1000
+  };
+}
+
+export function clearRefreshCookieOptions(config = env) {
+  return refreshCookieBaseOptions(config);
+}
+
+function refreshCookieBaseOptions(config) {
+  return {
+    secure: config.refreshCookieSameSite === "none" ? true : config.refreshCookieSecure,
+    sameSite: config.refreshCookieSameSite,
+    path: REFRESH_COOKIE_PATH
   };
 }
 

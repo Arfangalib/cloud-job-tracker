@@ -53,6 +53,7 @@ describe("auth security", () => {
     expect(register.status).toBe(201);
     expect(register.body.accessToken).toBeTruthy();
     expect(register.headers["set-cookie"].join(";")).toContain("HttpOnly");
+    expect(register.headers["set-cookie"].join(";")).toContain("SameSite=Strict");
 
     const session = await Session.findOne();
     expect(session.tokenHash).toHaveLength(64);
@@ -60,6 +61,12 @@ describe("auth security", () => {
     const refresh = await request(app).post("/auth/refresh").set("Cookie", register.headers["set-cookie"]);
     expect(refresh.status).toBe(200);
     expect(refresh.body.accessToken).toBeTruthy();
+
+    const logout = await request(app).post("/auth/logout").set("Cookie", refresh.headers["set-cookie"]);
+    expect(logout.status).toBe(204);
+    const clearCookie = logout.headers["set-cookie"].join(";");
+    expect(clearCookie).toContain("Path=/auth");
+    expect(clearCookie).toContain("SameSite=Strict");
 
     const oldReuse = await request(app).post("/auth/refresh").set("Cookie", register.headers["set-cookie"]);
     expect(oldReuse.status).toBe(401);

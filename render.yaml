@@ -28,10 +28,16 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: NODE_ENV
+        value: production
       - key: RUN_WORKER_INLINE
         value: "true"
       - key: AI_PROVIDER
         value: mock
+      - key: REFRESH_COOKIE_SAME_SITE
+        value: none
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"
       - key: STORAGE_DRIVER
         value: local
       - key: MONGODB_URI
