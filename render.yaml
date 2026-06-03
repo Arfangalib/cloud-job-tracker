@@ -1,0 +1,52 @@
+# Render Blueprint for the free-tier live demo.
+# Pairs with a free MongoDB Atlas M0 cluster (set MONGODB_URI below).
+#
+# For the demo, the API service runs the worker in-process (RUN_WORKER_INLINE=true)
+# to stay within free limits. In production the API and worker run as separate
+# services (see infra/terraform for the AWS ECS + SQS topology).
+#
+# After the first deploy, set the cross-referencing URLs in the dashboard:
+#   - API service:  CLIENT_ORIGIN  = the web static-site URL
+#   - Web service:  VITE_API_URL   = the API service URL
+# Then seed demo data once from the API service Shell:
+#   npm run seed --workspace apps/api
+
+services:
+  - type: web
+    name: cloud-job-tracker-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start --workspace apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: RUN_WORKER_INLINE
+        value: "true"
+      - key: AI_PROVIDER
+        value: mock
+      - key: STORAGE_DRIVER
+        value: local
+      - key: MONGODB_URI
+        sync: false # Atlas M0 connection string (secret)
+      - key: CLIENT_ORIGIN
+        sync: false # set to the web static-site URL after first deploy
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_PEPPER
+        generateValue: true
+
+  - type: web
+    name: cloud-job-tracker-web
+    runtime: static
+    buildCommand: npm ci && npm run build --workspace apps/web
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false # set to the API service URL after first deploy
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
