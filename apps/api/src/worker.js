@@ -4,6 +4,7 @@ import { JobPost } from "./models/JobPost.js";
 import { Reminder } from "./models/Reminder.js";
 import { Resume } from "./models/Resume.js";
 import { fetchDirectJob } from "./services/directSources.js";
+import { pollApifyIngestionRun } from "./services/ingestion.js";
 import { claimNextWorkItem, completeWorkItem, failWorkItem } from "./services/queue.js";
 import { scoreJobAgainstResume } from "./services/scoring.js";
 import { upsertJobs } from "./routes/jobs.js";
@@ -21,6 +22,10 @@ async function processItem(item) {
     run.itemsImported = jobs.length;
     await run.save();
     await queueScoring(run.userId, jobs);
+  }
+
+  if (item.type === "apify-poll") {
+    await pollApifyIngestionRun(item.payload);
   }
 
   if (item.type === "apify-results") {

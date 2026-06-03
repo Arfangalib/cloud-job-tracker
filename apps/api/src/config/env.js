@@ -14,6 +14,8 @@ export const env = {
   apifyToken: process.env.APIFY_TOKEN || "",
   apifyJobActorId: process.env.APIFY_JOB_ACTOR_ID || "",
   apifyWebhookSecret: process.env.APIFY_WEBHOOK_SECRET || "dev_apify_webhook_secret",
+  apifyPollIntervalMs: Number(process.env.APIFY_POLL_INTERVAL_MS || 15000),
+  apifyPollMaxAttempts: Number(process.env.APIFY_POLL_MAX_ATTEMPTS || 40),
   publicApiUrl: process.env.PUBLIC_API_URL || "http://localhost:4000",
   aiProvider: process.env.AI_PROVIDER || "mock",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
