@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # npm dependencies across the workspace monorepo (single root manifest/lockfile).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Bundle minor/patch bumps into one PR to reduce noise.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Keep GitHub Actions versions current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
