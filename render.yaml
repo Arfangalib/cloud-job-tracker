@@ -8,8 +8,13 @@
 # After the first deploy, set the cross-referencing URLs in the dashboard:
 #   - API service:  CLIENT_ORIGIN  = the web static-site URL
 #   - Web service:  VITE_API_URL   = the API service URL
+#     NOTE: VITE_API_URL is build-time -> trigger a web redeploy/rebuild after setting it.
 # Then seed demo data once from the API service Shell:
 #   npm run seed --workspace apps/api
+#
+# Demo caveats: local storage is ephemeral (lost on redeploy; prod uses S3), free
+# services sleep when idle (Apify polling pauses until the API wakes), and the seeded
+# demo account is mutable (data may reset).
 
 services:
   - type: web
