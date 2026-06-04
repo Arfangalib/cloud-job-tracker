@@ -71,16 +71,17 @@ export function Dashboard() {
         <CardContent className="grid gap-2">
           {topMatches.length ? (
             topMatches.map((job) => (
-              <div
+              <Link
                 key={job._id}
-                className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-2px)] border border-border p-3"
+                to={`/jobs/${job._id}`}
+                className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-2px)] border border-border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium">{job.title}</p>
                   <p className="truncate text-sm text-muted-foreground">{job.company}</p>
                 </div>
                 <ScoreBadge score={job.match?.score} />
-              </div>
+              </Link>
             ))
           ) : (
             <p className="text-sm text-muted-foreground">

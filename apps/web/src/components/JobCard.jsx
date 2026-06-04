@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ExternalLink, Sparkles, Target } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ExternalLink, FileText, Sparkles, Target } from "lucide-react";
 import { Card } from "./ui/card.jsx";
 import { Badge } from "./ui/badge.jsx";
 import { Button } from "./ui/button.jsx";
@@ -71,6 +72,12 @@ export function JobCard({ job, onTailored }) {
 
       <div className="grid w-full gap-2 sm:w-44">
         <ScoreBadge score={job.match?.score} className="justify-self-start sm:justify-self-end" />
+
+        <Button asChild variant="secondary" size="sm">
+          <Link to={`/jobs/${job._id}`}>
+            <FileText size={14} /> Details / docs
+          </Link>
+        </Button>
 
         {isHttpUrl(job.sourceUrl) ? (
           <Button asChild variant="outline" size="sm">
