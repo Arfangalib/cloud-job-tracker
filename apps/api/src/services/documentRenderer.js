@@ -25,18 +25,33 @@ export const MIME_TYPES = {
 
 function buildResumeModel({ draft, resume, user, job }) {
   const parsed = resume?.parsed || {};
+  // Prefer the richer structured draft fields; fall back to parsed resume data
+  // and, for older/snapshotted drafts, to the legacy bulletSuggestions array.
+  const skills = pick(draft?.skills, dedupe([...(parsed.cloudSkills || []), ...(parsed.sweSkills || []), ...(parsed.skills || [])]));
+  const experience = pick(draft?.experienceBullets, draft?.bulletSuggestions);
+  const projects = pick(draft?.projectBullets, parsed.projects);
+  const education = pick(draft?.education, parsed.education);
+
   return {
     name: user?.name || "Candidate",
     contact: [user?.email, job?.location].filter(Boolean).join("  |  "),
     headline: draft?.resumeHeadline || `${job?.title || "Software Engineer"} candidate`,
-    summary: job?.match?.summary || "",
+    summary: (draft?.professionalSummary || job?.match?.summary || "").trim(),
     sections: [
-      { title: "Core Skills", items: dedupe(parsed.skills), inline: true },
-      { title: "Highlights", items: draft?.bulletSuggestions || [] },
-      { title: "Projects", items: parsed.projects || [] },
-      { title: "Education", items: parsed.education || [] }
+      { title: "Technical Skills", items: dedupe(skills), inline: true },
+      { title: "Experience", items: experience },
+      { title: "Projects", items: projects },
+      { title: "Education", items: education }
     ].filter((section) => section.items && section.items.length)
   };
+}
+
+// First non-empty list among the candidates.
+function pick(...lists) {
+  for (const list of lists) {
+    if (Array.isArray(list) && list.length) return list;
+  }
+  return [];
 }
 
 function buildCoverLetterModel({ draft, job, user }) {

@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { mkdtempSync } from "node:fs";
+import mammoth from "mammoth";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -27,10 +28,21 @@ afterAll(async () => {
   if (mongo) await mongo.stop();
 });
 
+// Buffer binary responses (DOCX) into a real Buffer for mammoth/jszip.
+function binaryParser(res, callback) {
+  const chunks = [];
+  res.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+  res.on("end", () => callback(null, Buffer.concat(chunks)));
+}
+
+let setupCount = 0;
+
 async function setup() {
+  setupCount += 1;
+  const email = `docs-${setupCount}@example.com`;
   const register = await request(app)
     .post("/auth/register")
-    .send({ name: "Ada Lovelace", email: "docs@example.com", password: "verysecurepassword" });
+    .send({ name: "Ada Lovelace", email, password: "verysecurepassword" });
   const token = register.body.accessToken;
 
   await request(app)
@@ -43,11 +55,11 @@ async function setup() {
       isPrimary: true
     });
 
-  const user = await User.findOne({ email: "docs@example.com" });
+  const user = await User.findOne({ email });
   const job = await JobPost.create({
     userId: user._id,
     source: "manual",
-    sourceUrl: "https://example.com/job-1",
+    sourceUrl: `https://example.com/docs-job-${setupCount}`,
     title: "Cloud SWE Intern",
     company: "Acme Cloud",
     location: "Remote",
@@ -81,6 +93,32 @@ describe("document generation", () => {
     expect(download.headers["content-type"]).toContain("application/pdf");
     expect(download.headers["content-disposition"]).toContain("attachment");
     expect(download.body.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  });
+
+  it("generates a resume DOCX with ATS sections and tailored content", async () => {
+    const { token, jobId } = await setup();
+
+    const generate = await request(app)
+      .post("/documents/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId, kind: "resume", format: "docx" });
+    expect(generate.status).toBe(201);
+
+    const download = await request(app)
+      .get(`/documents/${generate.body.document._id}/download`)
+      .set("Authorization", `Bearer ${token}`)
+      .buffer(true)
+      .parse(binaryParser);
+    expect(download.status).toBe(200);
+    expect(download.headers["content-type"]).toContain("wordprocessingml");
+
+    const { value: text } = await mammoth.extractRawText({ buffer: download.body });
+    // Real ATS layout sections (from the structured/fallback tailoring draft).
+    expect(text).toContain("Summary");
+    expect(text).toContain("Technical Skills");
+    expect(text).toContain("Experience");
+    // Job-specific tailored content grounded in the resume.
+    expect(text.toLowerCase()).toContain("react");
   });
 
   it("rejects generation without a resume", async () => {

@@ -47,6 +47,11 @@ describe("job matching and tailoring", () => {
     const draft = await buildTailoredDraft({ job: { ...job, match }, resume });
     expect(draft.guardrails.doNotInvent).toContain("certifications");
     expect(draft.guardrails.onlyAddIfTrue).toContain("terraform");
+    // Mock/fallback tailoring still produces polished, structured output.
+    expect(draft.professionalSummary).toBeTruthy();
+    expect(Array.isArray(draft.skills)).toBe(true);
+    expect(draft.experienceBullets.length).toBeGreaterThan(0);
+    expect(draft.bulletSuggestions.length).toBeGreaterThan(0);
   });
 
   it("normalizes worldunboxer LinkedIn scraper fields", () => {
@@ -173,7 +178,11 @@ describe("job matching and tailoring", () => {
         create: async () => ({
           output_text: JSON.stringify({
             resumeHeadline: "Cloud SWE intern candidate with React and AWS projects",
-            bulletSuggestions: ["Lead with React project impact", "Mention AWS deployment truthfully"],
+            professionalSummary: "Computer science student with React and AWS project experience.",
+            skills: ["React", "AWS", "Node.js"],
+            experienceBullets: ["Lead with React project impact", "Mention AWS deployment truthfully"],
+            projectBullets: ["Built a React/Node app deployed on AWS"],
+            education: ["B.Sc. Computer Science"],
             coverLetterDraft: "I am excited to apply with React and AWS project experience.",
             guardrails: {
               doNotInvent: ["certifications", "employment dates"],
@@ -199,10 +208,16 @@ describe("job matching and tailoring", () => {
 
     expect(draft).toMatchObject({
       resumeHeadline: "Cloud SWE intern candidate with React and AWS projects",
+      professionalSummary: expect.stringContaining("React"),
+      skills: expect.arrayContaining(["React", "AWS"]),
+      education: ["B.Sc. Computer Science"],
       guardrails: {
         onlyAddIfTrue: ["Terraform"]
       }
     });
+    expect(draft.experienceBullets[0]).toContain("React");
+    expect(draft.projectBullets[0]).toContain("React");
+    // Backward-compat alias is derived from experience + project bullets.
     expect(draft.bulletSuggestions[0]).toContain("React");
   });
 

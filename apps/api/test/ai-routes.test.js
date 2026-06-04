@@ -82,7 +82,11 @@ describe("AI job routes", () => {
     });
     configureOpenAi({
       resumeHeadline: "Cloud SWE candidate with React and AWS projects",
-      bulletSuggestions: ["Lead with React project impact", "Mention AWS deployment truthfully"],
+      professionalSummary: "Candidate with React and AWS project experience.",
+      skills: ["React", "AWS", "Node.js"],
+      experienceBullets: ["Lead with React project impact", "Mention AWS deployment truthfully"],
+      projectBullets: ["Built a React/Node app on AWS"],
+      education: ["B.Sc. Computer Science"],
       coverLetterDraft: "I am excited to apply with React and AWS project experience.",
       guardrails: {
         doNotInvent: ["certifications", "employment dates"],
@@ -95,10 +99,13 @@ describe("AI job routes", () => {
     expect(response.status).toBe(200);
     expect(response.body.draft).toMatchObject({
       resumeHeadline: "Cloud SWE candidate with React and AWS projects",
+      professionalSummary: expect.stringContaining("React"),
+      skills: expect.arrayContaining(["React", "AWS"]),
       guardrails: {
         onlyAddIfTrue: ["Terraform"]
       }
     });
+    expect(response.body.draft.experienceBullets[0]).toContain("React");
     expect(response.body.draft.bulletSuggestions[0]).toContain("React");
   });
 

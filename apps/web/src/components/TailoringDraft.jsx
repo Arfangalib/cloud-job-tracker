@@ -3,8 +3,26 @@ import { Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.jsx";
 import { Badge } from "./ui/badge.jsx";
 
+function BulletList({ items }) {
+  return (
+    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+      {items.map((item, i) => (
+        <li key={`${i}-${item.slice(0, 24)}`}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
 export function TailoringDraft({ job, draft }) {
   if (!draft) return null;
+
+  // Tolerate older drafts that only had `bulletSuggestions`.
+  const experience = (draft.experienceBullets?.length ? draft.experienceBullets : draft.bulletSuggestions) || [];
+  const projects = draft.projectBullets || [];
+  const skills = draft.skills || [];
+  const education = draft.education || [];
+  const onlyAddIfTrue = draft.guardrails?.onlyAddIfTrue || [];
+
   return (
     <Card>
       <CardHeader>
@@ -19,14 +37,46 @@ export function TailoringDraft({ job, draft }) {
           <p className="mt-1 font-medium">{draft.resumeHeadline}</p>
         </div>
 
-        <div>
-          <h4 className="text-sm font-semibold text-muted-foreground">Bullet suggestions</h4>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
-            {(draft.bulletSuggestions || []).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
+        {draft.professionalSummary ? (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground">Professional summary</h4>
+            <p className="mt-1 text-sm">{draft.professionalSummary}</p>
+          </div>
+        ) : null}
+
+        {skills.length ? (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground">Technical skills</h4>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {skills.map((skill) => (
+                <Badge key={skill} variant="secondary">
+                  {skill}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {experience.length ? (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground">Experience bullets</h4>
+            <BulletList items={experience} />
+          </div>
+        ) : null}
+
+        {projects.length ? (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground">Project bullets</h4>
+            <BulletList items={projects} />
+          </div>
+        ) : null}
+
+        {education.length ? (
+          <div>
+            <h4 className="text-sm font-semibold text-muted-foreground">Education</h4>
+            <BulletList items={education} />
+          </div>
+        ) : null}
 
         <div>
           <h4 className="text-sm font-semibold text-muted-foreground">Cover letter draft</h4>
@@ -37,8 +87,8 @@ export function TailoringDraft({ job, draft }) {
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-muted-foreground">Only add if true:</span>
-          {(draft.guardrails?.onlyAddIfTrue || []).length ? (
-            draft.guardrails.onlyAddIfTrue.map((item) => (
+          {onlyAddIfTrue.length ? (
+            onlyAddIfTrue.map((item) => (
               <Badge key={item} variant="outline">
                 {item}
               </Badge>
