@@ -28,6 +28,11 @@ content, generate downloadable documents, and track applications end-to-end.
 
 ## Architecture
 
+![Cloud Job Tracker architecture](docs/architecture.png)
+
+<details>
+<summary>Architecture as Mermaid (text source)</summary>
+
 ```mermaid
 flowchart LR
   subgraph client [Client]
@@ -58,6 +63,8 @@ flowchart LR
   API --> Store
   Worker --> Store
 ```
+
+</details>
 
 **Monorepo** (npm workspaces, single root lockfile):
 

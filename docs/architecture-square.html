@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { background:#0f1c18; }
+  #stage { position:relative; width:1200px; height:1200px;
+    background: radial-gradient(900px 520px at 80% -8%, #1d4d40 0%, #0f1c18 58%);
+    font-family:"Segoe UI", Inter, system-ui, -apple-system, Arial, sans-serif; color:#0c1512; overflow:hidden; }
+  .h-title { position:absolute; left:48px; top:36px; font-size:40px; font-weight:800; color:#fff; letter-spacing:-0.5px; }
+  .h-sub   { position:absolute; left:50px; top:90px; font-size:17px; font-weight:500; color:#9fe6cf; }
+  .tierlabel { position:absolute; font-size:12px; font-weight:800; letter-spacing:2px; color:#5f8576; }
+
+  .card { position:absolute; background:#fff; border-radius:15px; box-shadow:0 10px 26px rgba(0,0,0,.30);
+    padding:13px 15px; border-top:5px solid #185b4c; }
+  .card h3 { font-size:18px; font-weight:800; color:#11201b; margin-bottom:3px; }
+  .card .tag { font-size:11px; font-weight:700; color:#7a8a84; text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+  .card p { font-size:13px; line-height:1.45; color:#3b4a45; }
+  .card .pill { display:inline-block; font-size:11px; font-weight:600; color:#185b4c; background:#e7f5ee; border-radius:7px; padding:2px 7px; margin:3px 4px 0 0; }
+  .c-client{border-top-color:#2f7fe6;} .c-api{border-top-color:#185b4c;}
+  .c-queue{border-top-color:#3a3f55; background:#171b2b;} .c-queue h3{color:#fff;} .c-queue p{color:#c5cbe0;} .c-queue .tag{color:#8b93b5;}
+  .c-worker{border-top-color:#0f9d8a;} .c-data{border-top-color:#5b6b66;} .c-ai{border-top-color:#7c4ddb;} .c-apify{border-top-color:#ea7317;}
+
+  .callout { position:absolute; background:#13312a; border:1.5px solid #2ee6a6; border-radius:12px;
+    padding:10px 13px; color:#d6fff0; font-size:12.5px; font-weight:600; line-height:1.45; box-shadow:0 8px 20px rgba(0,0,0,.3); }
+  .callout b { color:#2ee6a6; }
+
+  .infra { position:absolute; left:48px; top:980px; width:1104px; padding:14px 16px;
+    background:rgba(255,255,255,.06); border:1px solid rgba(158,230,207,.25); border-radius:14px;
+    display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .infra .lbl { font-size:12px; font-weight:800; letter-spacing:1.5px; color:#9fe6cf; width:100%; margin-bottom:2px; }
+  .chip { font-size:13px; font-weight:600; color:#eafff7; background:rgba(46,230,166,.12); border:1px solid rgba(46,230,166,.35); border-radius:999px; padding:6px 12px; }
+
+  svg.arrows { position:absolute; left:0; top:0; width:1200px; height:1200px; pointer-events:none; }
+  .alabel { font-size:12px; font-weight:700; fill:#cfe9df; }
+  .alabel.dark { fill:#0c1512; }
+  .footnote { position:absolute; left:50px; top:1150px; font-size:12px; color:#5f8576; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="h-title">Cloud Job Tracker</div>
+  <div class="h-sub">MERN + Docker · AI résumé tailoring &amp; ATS docs · cloud-ready</div>
+
+  <div class="tierlabel" style="left:50px; top:168px;">CLIENT</div>
+  <div class="tierlabel" style="left:50px; top:312px;">SERVICES</div>
+  <div class="tierlabel" style="left:50px; top:566px;">DATA &amp; INTEGRATIONS</div>
+
+  <svg class="arrows" viewBox="0 0 1200 1200">
+    <defs>
+      <marker id="ah" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2ee6a6"/></marker>
+      <marker id="ah2" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ffb169"/></marker>
+    </defs>
+    <!-- client -> api -->
+    <line x1="470" y1="252" x2="225" y2="300" stroke="#2ee6a6" stroke-width="2.4" marker-end="url(#ah)"/>
+    <!-- api -> queue / worker -> queue -->
+    <line x1="400" y1="385" x2="428" y2="385" stroke="#2ee6a6" stroke-width="2.4" marker-end="url(#ah)"/>
+    <line x1="800" y1="385" x2="772" y2="385" stroke="#2ee6a6" stroke-width="2.4" marker-end="url(#ah)"/>
+    <!-- services -> data -->
+    <line x1="150" y1="470" x2="175" y2="556" stroke="#2ee6a6" stroke-width="2.2" marker-end="url(#ah)"/>
+    <line x1="300" y1="470" x2="457" y2="556" stroke="#2ee6a6" stroke-width="2.2" marker-end="url(#ah)"/>
+    <line x1="900" y1="470" x2="739" y2="556" stroke="#2ee6a6" stroke-width="2.2" marker-end="url(#ah)"/>
+    <line x1="1060" y1="470" x2="1021" y2="556" stroke="#ffb169" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ah2)"/>
+
+    <text class="alabel" x="250" y="278">HTTPS · refresh cookie</text>
+    <text class="alabel dark" x="398" y="373">enqueue</text>
+    <text class="alabel dark" x="720" y="373">claim</text>
+    <text class="alabel" x="610" y="520">score / tailor</text>
+    <text class="alabel" x="1030" y="520">webhook + poll</text>
+  </svg>
+
+  <!-- CLIENT -->
+  <div class="card c-client" style="left:360px; top:150px; width:480px; height:104px;">
+    <div class="tag">Client · Render Static Site</div>
+    <h3>Web App (SPA)</h3>
+    <p>React 19 · Vite · Tailwind · React Router. Session restore + single-flight token refresh.</p>
+  </div>
+  <div class="callout" style="left:862px; top:150px; width:288px;">
+    ★ <b>Resilient ingestion:</b> Apify webhook fast-path + idempotent <b>worker polling</b> fallback (no tunnel needed).
+  </div>
+
+  <!-- SERVICES -->
+  <div class="card c-api" style="left:40px; top:300px; width:360px; height:172px;">
+    <div class="tag">API · Node 22 + Express</div>
+    <h3>REST API + Auth</h3>
+    <p>JWT + <b>refresh-cookie rotation</b> &amp; reuse-revocation · Zod · helmet/CORS/rate-limit.</p>
+    <span class="pill">score</span><span class="pill">tailor</span><span class="pill">ATS docs</span>
+  </div>
+  <div class="card c-queue" style="left:428px; top:330px; width:344px; height:108px;">
+    <div class="tag">Async</div>
+    <h3>Work Queue</h3>
+    <p>MongoDB · claim/retry/backoff ≈ <b>AWS SQS</b></p>
+  </div>
+  <div class="card c-worker" style="left:800px; top:300px; width:360px; height:172px;">
+    <div class="tag">Background Worker</div>
+    <h3>Worker Loop</h3>
+    <p>Scoring · ingestion · reminders. <b>webhook + polling</b> completion.</p>
+    <span class="pill">score-job</span><span class="pill">apify-poll</span>
+  </div>
+
+  <!-- DATA & INTEGRATIONS (4 across) -->
+  <div class="card c-data" style="left:40px; top:560px; width:270px; height:178px;">
+    <div class="tag">Database</div><h3>MongoDB</h3>
+    <p>Atlas (prod). Users, jobs, resumes, applications, sessions.</p>
+  </div>
+  <div class="card c-data" style="left:322px; top:560px; width:270px; height:178px;">
+    <div class="tag">Storage</div><h3>Local / S3</h3>
+    <p>Pluggable storage. Resume uploads + generated documents.</p>
+  </div>
+  <div class="card c-ai" style="left:604px; top:560px; width:270px; height:178px;">
+    <div class="tag">AI Provider</div><h3>OpenAI / Mock</h3>
+    <p>Fit score + ATS tailoring. Anti-hallucination; mock fallback.</p>
+  </div>
+  <div class="card c-apify" style="left:886px; top:560px; width:270px; height:178px;">
+    <div class="tag">Ingestion</div><h3>Apify Actors</h3>
+    <p>LinkedIn / job-board scraping → normalized, scored jobs.</p>
+  </div>
+
+  <!-- DELIVERY -->
+  <div class="infra">
+    <span class="lbl">DELIVERY</span>
+    <span class="chip">GitHub Actions CI</span>
+    <span class="chip">Docker Compose (dev)</span>
+    <span class="chip">Render + MongoDB Atlas (live demo)</span>
+    <span class="chip">Terraform → AWS: ECS Fargate · SQS · S3 · CloudWatch</span>
+  </div>
+
+  <div class="footnote">— request · ┄ async / event</div>
+</div>
+</body>
+</html>
