@@ -9,20 +9,43 @@ import { parseResume } from "../services/resumeParser.js";
 
 const DEMO_EMAIL = process.env.DEMO_EMAIL || "demo@cloudjobtracker.app";
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "DemoPass123!";
+// Set DEMO_RESET=true to wipe and recreate the demo account (refresh after deploy).
+const DEMO_RESET = process.env.DEMO_RESET === "true";
 
 const RESUME_TEXT = `Alex Rivera
-Cloud / Software Engineering Intern
+Vancouver, BC | alex.rivera@example.com | github.com/alexrivera | linkedin.com/in/alexrivera
+Software / Cloud Engineering Intern
 
-SKILLS
-JavaScript, TypeScript, React, Node.js, Express, Python
-AWS, Docker, Kubernetes, Terraform, MongoDB, PostgreSQL, REST, CI/CD, Git
+SUMMARY
+Computer Science student (UBC, expected 2027) with hands-on experience building and
+deploying full-stack, cloud-native applications. Comfortable across JavaScript/TypeScript,
+React, and Node.js with practical AWS, Docker, and Terraform experience.
+
+TECHNICAL SKILLS
+Languages: JavaScript, TypeScript, Python, Java, SQL
+Frontend: React, Next.js, HTML, CSS, Tailwind CSS
+Backend: Node.js, Express, REST APIs, GraphQL
+Cloud / DevOps: AWS (Lambda, S3, ECS), Docker, Kubernetes, Terraform, CI/CD, GitHub Actions, Linux
+Data: MongoDB, PostgreSQL, Redis
+Practices: Unit/integration testing (Vitest, Jest), Git, Agile
+
+EXPERIENCE
+Software Engineer Intern — Northstar Labs, Vancouver, BC (May 2025 - Aug 2025)
+- Built REST APIs in Node.js and Express backed by PostgreSQL, serving 5+ internal endpoints.
+- Containerized services with Docker and deployed to AWS ECS using Terraform infrastructure-as-code.
+- Set up CI/CD with GitHub Actions, cutting manual deploy steps and speeding up releases.
+- Wrote unit and integration tests, raising coverage on the team's core service.
 
 PROJECTS
-- Serverless image pipeline on AWS Lambda + S3 with Terraform IaC.
-- Real-time chat app with React, Node, WebSockets, and MongoDB.
+Cloud Job Tracker (2025) — React, Node.js, Express, MongoDB
+- Full-stack app with worker queues, AI fit scoring, and ATS document generation.
+- Deployed on Render with MongoDB Atlas; resilient job ingestion via webhook + polling.
+Serverless Image Pipeline (2024) — AWS Lambda, S3, Terraform
+- Event-driven image processing with infrastructure defined entirely as code.
 
 EDUCATION
-B.Sc. Computer Science, University of British Columbia (expected 2027)`;
+B.Sc. Computer Science, University of British Columbia (UBC) — Expected 2027
+Relevant coursework: Data Structures & Algorithms, Databases, Operating Systems, Cloud Computing`;
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -81,14 +104,23 @@ const SAMPLE_JOBS = [
 async function seed() {
   await connectDb();
 
-  let user = await User.findOne({ email: DEMO_EMAIL.toLowerCase() });
-  if (user) {
-    console.log(`Demo user ${DEMO_EMAIL} already exists; nothing to seed.`);
-    return;
+  const existing = await User.findOne({ email: DEMO_EMAIL.toLowerCase() });
+  if (existing) {
+    if (!DEMO_RESET) {
+      console.log(`Demo user ${DEMO_EMAIL} already exists; pass DEMO_RESET=true to refresh it.`);
+      return;
+    }
+    console.log(`DEMO_RESET=true — clearing existing demo data for ${DEMO_EMAIL}...`);
+    await Promise.all([
+      Resume.deleteMany({ userId: existing._id }),
+      JobPost.deleteMany({ userId: existing._id }),
+      Application.deleteMany({ userId: existing._id })
+    ]);
+    await User.deleteOne({ _id: existing._id });
   }
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
-  user = await User.create({
+  const user = await User.create({
     name: "Alex Rivera (Demo)",
     email: DEMO_EMAIL,
     passwordHash,
