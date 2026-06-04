@@ -2,13 +2,27 @@
 
 [![CI](https://github.com/Arfangalib/cloud-job-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Arfangalib/cloud-job-tracker/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Live demo](https://img.shields.io/badge/Live%20demo-online-2ea44f)](https://cloud-job-tracker-web.onrender.com)
 
 A **MERN + Docker** app for SWE/cloud internship & co-op hunting. Upload a resume,
 import jobs, get an AI fit score, tailor truthful **ATS-friendly** resume/cover-letter
 content, generate downloadable documents, and track applications end-to-end.
 
-> **Live demo:** _added after deploy_ — see [Deployment](#deployment). The demo runs
-> with deterministic AI (`AI_PROVIDER=mock`), so no API keys are required to try it.
+> **▶ Live demo: https://cloud-job-tracker-web.onrender.com**
+> Register your own account, or use the seeded demo login (`demo@cloudjobtracker.app`
+> / `DemoPass123!`). Runs with deterministic AI (`AI_PROVIDER=mock`), so no API keys
+> are needed. _First load can take ~50s — the free instance sleeps when idle. Demo
+> data may be reset; uploads are ephemeral._
+
+---
+
+## Screenshots
+
+| Jobs — search, fit score, tailor | AI tailoring draft (anti-hallucination) |
+| --- | --- |
+| ![Jobs search](docs/screenshots/jobs-search.png) | ![Tailoring draft](docs/screenshots/tailoring.png) |
+| **Dashboard — application pipeline** | **Generated ATS documents** |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Documents](docs/screenshots/documents.png) |
 
 ---
 
@@ -210,7 +224,7 @@ The local Mongo work queue maps to SQS; local disk storage maps to S3.
 ## Roadmap
 
 - GitHub Actions CI ✅
-- Free-tier live demo (Render + Atlas) — in progress
+- Free-tier live demo (Render + Atlas) ✅ — https://cloud-job-tracker-web.onrender.com
 - Deferred until a public launch: usage quotas / BYO-key for Apify & OpenAI cost;
   LinkedIn/Indeed ToS review; password-reset + email reminders (currently stubs);
   ESLint setup.
