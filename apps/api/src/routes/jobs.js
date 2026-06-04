@@ -144,7 +144,7 @@ jobRouter.post("/import-linkedin-search", async (req, res, next) => {
 
 jobRouter.post("/import-url", async (req, res, next) => {
   try {
-    const { url } = z.object({ url: z.string().url() }).parse(req.body);
+    const { url } = z.object({ url: z.url() }).parse(req.body);
     const source = detectSource(url);
     const mode = needsApify(url) ? "apify" : "direct";
     const run = await IngestionRun.create({ userId: req.user._id, source, sourceUrl: url, mode, status: "pending" });
