@@ -19,8 +19,8 @@ export const authRouter = express.Router();
 
 const registerSchema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(10)
+  email: z.email(),
+  password: z.string().min(10, "Password must be at least 10 characters")
 });
 
 authRouter.post("/register", authLimiter, async (req, res, next) => {
@@ -40,7 +40,7 @@ authRouter.post("/register", authLimiter, async (req, res, next) => {
 
 authRouter.post("/login", authLimiter, async (req, res, next) => {
   try {
-    const { email, password } = z.object({ email: z.string().email(), password: z.string() }).parse(req.body);
+    const { email, password } = z.object({ email: z.email(), password: z.string() }).parse(req.body);
     const user = await User.findOne({ email: email.toLowerCase() });
     const valid = user ? await bcrypt.compare(password, user.passwordHash) : false;
     if (!valid) return res.status(401).json({ error: "Invalid email or password" });

@@ -39,7 +39,8 @@ export function createApp() {
 
   app.use((err, _req, res, _next) => {
     if (err instanceof ZodError) {
-      return res.status(400).json({ error: err.errors });
+      // zod v4 exposes the issue array as `issues` (v3's `errors` is removed).
+      return res.status(400).json({ error: err.issues });
     }
 
     console.error(err);
